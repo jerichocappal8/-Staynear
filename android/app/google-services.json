@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "578999573932",
+    "project_id": "staynear-7a71b",
+    "storage_bucket": "staynear-7a71b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:578999573932:android:411b8560a551ce4c486e09",
+        "android_client_info": {
+          "package_name": "com.example.staynear"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVtWLbAc-hu873pbf9vtDCcEhOARvxT-o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
