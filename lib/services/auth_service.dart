@@ -70,11 +70,15 @@ class AuthService {
 
     return user;
   }
+// RESET PASSWORD
+Future<void> resetPassword(String email) async {
 
-  // RESET PASSWORD
-  Future<void> resetPassword(String email) async {
-    await _auth.sendPasswordResetEmail(email: email);
-  }
+  print("Sending reset email to: $email");
+
+  await _auth.sendPasswordResetEmail(email: email);
+
+  print("Reset email sent.");
+}
 
   // LOGOUT
   Future<void> logout() async {

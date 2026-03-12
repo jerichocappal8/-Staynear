@@ -9,6 +9,9 @@ import 'personal_details_screen.dart';
 import 'settings_screen.dart';
 import 'payment_details_screen.dart';
 import 'faq_screen.dart';
+import '../../core/app_colors.dart';
+import '../auth/auth_screen.dart';
+
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -20,6 +23,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? userData;
   bool loading = true;
+  bool loggingOut = false;
 
   @override
   void initState() {
@@ -27,19 +31,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadUser();
   }
 
-  Future<void> _loadUser() async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+Future<void> _loadUser() async {
 
-    final doc =
-        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) return;
+
+  final uid = user.uid;
+
+  final doc =
+      await FirebaseFirestore.instance.collection('users').doc(uid).get();
+
+  if (!mounted) return;
+
+  setState(() {
+    userData = doc.data();
+    loading = false;
+  });
+}
+
+Future<void> _logout() async {
+
+  if (loggingOut) return;
+
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text("Log out"),
+      content: const Text("Are you sure you want to log out?"),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text("Cancel"),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text(
+            "Logout",
+            style: TextStyle(color: Colors.red),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  if (confirm == true) {
+
+    loggingOut = true;
+
+    await FirebaseAuth.instance.signOut();
 
     if (!mounted) return;
 
-    setState(() {
-      userData = doc.data();
-      loading = false;
-    });
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AuthScreen(isLogin: true),
+      ),
+      (route) => false,
+    );
   }
+}
+
 
   Future<void> _handleHosting() async {
     if (userData == null) return;
@@ -93,101 +146,198 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background(context),
       body: SafeArea(
         child: ListView(
           children: [
-            const SizedBox(height: 20),
+            const SizedBox(height: 28),
 
-            CircleAvatar(
-  radius: 45,
-  backgroundColor: Colors.grey.shade200,
-  backgroundImage:
-      (photo != null && photo.toString().startsWith('http'))
-          ? null
-          : null,
-  child: ClipOval(
-    child: (photo != null && photo.toString().startsWith('http'))
-        ? Image.network(
-            photo,
-            width: 90,
-            height: 90,
-            fit: BoxFit.cover, // change to contain if still too zoomed
-          )
-        : const Icon(Icons.person, size: 40),
+Container(
+  padding: const EdgeInsets.symmetric(vertical: 32),
+  child: Column(
+    children: [
+
+      CircleAvatar(
+        radius: 46,
+        backgroundColor: AppColors.primaryOrange.withOpacity(0.15),
+        child: ClipOval(
+          child: (photo != null && photo.toString().startsWith('http'))
+              ? Image.network(
+                  photo,
+                  width: 92,
+                  height: 92,
+                  fit: BoxFit.cover,
+                )
+              : Icon(
+                  Icons.person,
+                  size: 42,
+                  color: AppColors.primaryOrange,
+                ),
+        ),
+      ),
+
+      const SizedBox(height: 14),
+
+      Text(
+        name,
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: AppColors.text(context),
+        ),
+      ),
+
+      const SizedBox(height: 4),
+
+      Text(
+        email,
+        style: TextStyle(
+          fontSize: 13,
+          color: AppColors.textMid,
+        ),
+      ),
+
+    ],
   ),
 ),
 
-            const SizedBox(height: 12),
+const SizedBox(height: 5),
 
-            Center(
-              child: Text(
-                name,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+_menu(Icons.person, "Personal details", const PersonalDetailsScreen()),
+_menu(Icons.settings, "Settings", const SettingsScreen()),
+_menu(Icons.credit_card, "Payment details", const PaymentDetailsScreen()),
+_menu(Icons.help_outline, "FAQ", const FAQScreen()),
 
-            const SizedBox(height: 4),
+Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+  child: Container(
+decoration: BoxDecoration(
+  color: AppColors.card(context),
+  borderRadius: BorderRadius.circular(14),
+  boxShadow: [
+    BoxShadow(
+      color: Colors.black.withOpacity(
+        Theme.of(context).brightness == Brightness.dark ? 0.35 : 0.05,
+      ),
+      blurRadius: 12,
+      offset: const Offset(0, 4),
+    ),
+  ],
+),
+    child: ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+  color: AppColors.primaryOrange.withOpacity(0.15),
+  borderRadius: BorderRadius.circular(10),
+),
+        child: const Icon(
+          Icons.home_work_outlined,
+          color: Color(0xFFF5A623),
+        ),
+      ),
+      title: Text(
+        hostingText,
+        style: TextStyle(
+          color: AppColors.text(context),
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      trailing: Icon(
+  Icons.chevron_right_rounded,
+  color: AppColors.textMid,
+),
+      onTap: _handleHosting,
+    ),
+  ),
+),
 
-            Center(
-              child: Text(
-                email,
-                style: const TextStyle(color: Colors.grey),
-              ),
-            ),
-
-            const SizedBox(height: 30),
-            const Divider(),
-
-            _menu(Icons.person, "Personal details",
-                const PersonalDetailsScreen()),
-            _menu(Icons.settings, "Settings", const SettingsScreen()),
-            _menu(Icons.credit_card, "Payment details",
-                const PaymentDetailsScreen()),
-            _menu(Icons.help_outline, "FAQ", const FAQScreen()),
-
-            const Divider(),
-
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.swap_horiz),
-              ),
-              title: Text(hostingText),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _handleHosting,
-            ),
+Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+  child: Container(
+decoration: BoxDecoration(
+  color: AppColors.card(context),
+  borderRadius: BorderRadius.circular(14),
+  boxShadow: [
+    BoxShadow(
+      color: Colors.black.withOpacity(
+        Theme.of(context).brightness == Brightness.dark ? 0.35 : 0.05,
+      ),
+      blurRadius: 12,
+      offset: const Offset(0, 4),
+    ),
+  ],
+),
+    child: ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Icon(Icons.logout, color: Colors.red),
+      ),
+      title: const Text(
+        "Logout",
+        style: TextStyle(
+          color: Colors.red,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      onTap: _logout,
+    ),
+  ),
+),
           ],
         ),
       ),
     );
   }
-
-  Widget _menu(IconData icon, String text, Widget page) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon),
+Widget _menu(IconData icon, String text, Widget page) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+    child: Container(
+decoration: BoxDecoration(
+  color: AppColors.card(context),
+  borderRadius: BorderRadius.circular(14),
+  boxShadow: [
+    BoxShadow(
+      color: Colors.black.withOpacity(
+        Theme.of(context).brightness == Brightness.dark ? 0.35 : 0.05,
       ),
-      title: Text(text),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => page),
-        );
-      },
-    );
-  }
+      blurRadius: 12,
+      offset: const Offset(0, 4),
+    ),
+  ],
+),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.primaryOrange.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: const Color(0xFFF5A623)),
+        ),
+        title: Text(
+          text,
+          style: TextStyle(
+            color: AppColors.text(context),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        trailing: Icon(
+  Icons.chevron_right_rounded,
+  color: AppColors.textMid,
+),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => page),
+          );
+        },
+      ),
+    ),
+  );
+}
 }

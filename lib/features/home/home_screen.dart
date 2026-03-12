@@ -32,6 +32,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../host/host_dashboard_screen.dart';
 import 'apartment_detail_page.dart';
 import '../../core/app_colors.dart';
+import 'search_filter_screen.dart';
+import 'search_results_screen.dart';
+import '../../widgets/explore_search_bar.dart';
+import '../../core/location_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -52,12 +56,11 @@ class _HomeScreenState extends State<HomeScreen> {
   //  LIFECYCLE
   // ════════════════════════════════════════════════════════════════════════
 
-  @override
-  void initState() {
-    super.initState();
-    _subscribeToProperties();
-  }
-
+@override
+void initState() {
+  super.initState();
+  _subscribeToProperties();
+}
   void _subscribeToProperties() {
     _subscription = FirebaseFirestore.instance
         .collection('properties')
@@ -217,7 +220,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    "Urdaneta City, Pangasinan",
+  LocationService.currentLocation,
                     style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -264,44 +267,49 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _searchBar() {
-    return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(.04),
-              blurRadius: 16,
-              offset: const Offset(0, 6)),
-        ],
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.search_rounded, color: AppColors.textLight, size: 20),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              "Search by name, location...",
-              style: TextStyle(color: AppColors.textLight, fontSize: 14),
-            ),
+Widget _searchBar() {
+  return ExploreSearchBar(
+    controller: TextEditingController(),
+    includeApartments: true,
+    onCitySelected: (city) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SearchResultsScreen(
+            filters: {'city': city},
           ),
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: AppColors.primaryOrange,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.tune_rounded,
-                color: AppColors.card(context), size: 15),
+        ),
+      );
+    },
+    onApartmentSelected: (apartmentName) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SearchResultsScreen(
+            filters: {'name': apartmentName},
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      );
+    },
+    onFilterTap: () async {
+      final filters = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const SearchFilterScreen(),
+        ),
+      );
+
+      if (filters != null && mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SearchResultsScreen(filters: filters),
+          ),
+        );
+      }
+    },
+  );
+}
 
   Widget _sectionHeader(String title) {
     return Row(
@@ -357,6 +365,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final location    = (d['location']     ?? '') as String;
     final category    = (d['category']     ?? '') as String;
     final minPrice    = d['minPrice'];
+final pricingMode = (d['minPricingMode'] ?? 'monthly').toString();
     final coverUrl    = (d['coverImageUrl'] ?? '') as String;
     final rating      = d['rating'];
     final reviewCount = d['reviewCount'];
@@ -453,10 +462,13 @@ class _HomeScreenState extends State<HomeScreen> {
                               fontSize: 15,
                               fontWeight: FontWeight.w800,
                               color: AppColors.primaryOrange)),
-                      const TextSpan(
-                          text: " /mo",
-                          style: TextStyle(
-                              fontSize: 11, color: AppColors.textMid)),
+                      TextSpan(
+  text: pricingMode == 'daily' ? " /day" : " /mo",
+  style: const TextStyle(
+    fontSize: 11,
+    color: AppColors.textMid
+  ),
+),
                     ]),
                   ),
                 ],
@@ -478,6 +490,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final location    = (d['location']     ?? '') as String;
     final category    = (d['category']     ?? '') as String;
     final minPrice    = d['minPrice'];
+final pricingMode = (d['minPricingMode'] ?? 'monthly').toString();
     final coverUrl    = (d['coverImageUrl'] ?? '') as String;
     final rating      = d['rating'];
     final reviewCount = d['reviewCount'];
@@ -568,9 +581,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                         const SizedBox(width: 2),
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 2),
-                          child: Text("/month",
+                        Padding(
+  padding: const EdgeInsets.only(bottom: 2),
+  child: Text(
+    pricingMode == 'daily' ? "/day" : "/month",
                               style: TextStyle(
                                   fontSize: 11,
                                   color: AppColors.textMid)),

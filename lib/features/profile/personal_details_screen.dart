@@ -184,14 +184,28 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         'zipCode': _zipCodeController.text.trim(),
       }, SetOptions(merge: true));
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Personal details saved successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      if (!mounted) return;
+
+showDialog(
+  context: context,
+  barrierDismissible: false,
+  builder: (context) => AlertDialog(
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+    ),
+    title: const Text("Success"),
+    content: const Text("Your personal details were saved successfully."),
+    actions: [
+      TextButton(
+        onPressed: () {
+          Navigator.pop(context); // close dialog
+          Navigator.pop(context); // go back to Profile screen
+        },
+        child: const Text("OK"),
+      ),
+    ],
+  ),
+);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -235,7 +249,9 @@ prefixIcon: icon != null
       )
     : null,
 filled: true,
-fillColor: disabled ? const Color(0xFFF9FAFB) : AppColors.cardWhite,
+fillColor: disabled
+    ? AppColors.card(context)
+    : AppColors.card(context),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -282,7 +298,7 @@ fillColor: disabled ? const Color(0xFFF9FAFB) : AppColors.cardWhite,
   Widget _sectionGroup({required List<Widget> children}) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.cardWhite,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
       ),
@@ -297,7 +313,7 @@ fillColor: disabled ? const Color(0xFFF9FAFB) : AppColors.cardWhite,
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgLight,
+      backgroundColor: AppColors.background(context),
       appBar: AppBar(
         backgroundColor: AppColors.primaryOrange,
         foregroundColor: Colors.white,
@@ -328,7 +344,7 @@ fillColor: disabled ? const Color(0xFFF9FAFB) : AppColors.cardWhite,
                     _sectionGroup(children: [
                       TextFormField(
                         controller: _firstNameController,
-                        style: const TextStyle(fontSize: 14, color: AppColors.textDark),
+                        style: TextStyle(fontSize: 14, color: AppColors.text(context)),
                         decoration: _fieldDecoration('First Name'),
                         validator: (v) =>
                             (v == null || v.trim().isEmpty) ? 'First name is required' : null,
@@ -336,13 +352,13 @@ fillColor: disabled ? const Color(0xFFF9FAFB) : AppColors.cardWhite,
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _middleNameController,
-                        style: const TextStyle(fontSize: 14, color: AppColors.textDark),
+                        style: TextStyle(fontSize: 14, color: AppColors.text(context)),
                         decoration: _fieldDecoration('Middle Name (optional)'),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _lastNameController,
-                        style: const TextStyle(fontSize: 14, color: AppColors.textDark),
+                        style: TextStyle(fontSize: 14, color: AppColors.text(context)),
                         decoration: _fieldDecoration('Last Name'),
                         validator: (v) =>
                             (v == null || v.trim().isEmpty) ? 'Last name is required' : null,
@@ -355,7 +371,7 @@ fillColor: disabled ? const Color(0xFFF9FAFB) : AppColors.cardWhite,
                     _sectionGroup(children: [
                       TextFormField(
                         controller: _phoneController,
-                        style: const TextStyle(fontSize: 14, color: AppColors.textDark),
+                        style: TextStyle(fontSize: 14, color: AppColors.text(context)),
                         decoration: _fieldDecoration('Phone Number', icon: Icons.phone_outlined),
                         keyboardType: TextInputType.phone,
                         validator: (v) =>
@@ -379,7 +395,7 @@ fillColor: disabled ? const Color(0xFFF9FAFB) : AppColors.cardWhite,
                       // Street
                       TextFormField(
                         controller: _streetController,
-                        style: const TextStyle(fontSize: 14, color: AppColors.textDark),
+                        style: TextStyle(fontSize: 14, color: AppColors.text(context)),
                         decoration: _fieldDecoration('Street / House No.',
                             icon: Icons.home_outlined),
                         maxLines: null,
@@ -402,8 +418,8 @@ fillColor: disabled ? const Color(0xFFF9FAFB) : AppColors.cardWhite,
                       DropdownButtonFormField<String>(
                         value: _selectedCity,
                         decoration: _fieldDecoration('City / Municipality'),
-                        style: const TextStyle(fontSize: 14, color: AppColors.textDark),
-                        dropdownColor: AppColors.cardWhite,
+                        style: TextStyle(fontSize: 14, color: AppColors.text(context)),
+                        dropdownColor: AppColors.card(context),
                         icon: const Icon(Icons.keyboard_arrow_down_rounded,
                             color: AppColors.textMid, size: 20),
                         isExpanded: true,
@@ -427,7 +443,7 @@ fillColor: disabled ? const Color(0xFFF9FAFB) : AppColors.cardWhite,
                               ? 'Barangay (select city first)'
                               : 'Barangay',
                         ),
-                        style: const TextStyle(fontSize: 14, color: AppColors.textDark),
+                        style: TextStyle(fontSize: 14, color: AppColors.text(context)),
                         dropdownColor: AppColors.cardWhite,
                         icon: const Icon(Icons.keyboard_arrow_down_rounded,
                             color: AppColors.textMid, size: 20),
@@ -452,7 +468,7 @@ fillColor: disabled ? const Color(0xFFF9FAFB) : AppColors.cardWhite,
                       // Zip Code — text field, numbers only
                       TextFormField(
                         controller: _zipCodeController,
-                        style: const TextStyle(fontSize: 14, color: AppColors.textDark),
+                        style: TextStyle(fontSize: 14, color: AppColors.text(context)),
                         decoration: _fieldDecoration('Zip Code',
                             icon: Icons.markunread_mailbox_outlined),
                         keyboardType: TextInputType.number,

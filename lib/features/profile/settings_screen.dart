@@ -23,7 +23,6 @@
 //       home: const SettingsScreen(),
 //     ),
 //   );
-
 import 'package:flutter/material.dart';
 import 'package:otp/otp.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -33,7 +32,13 @@ import '../../core/app_colors.dart';
 import '../../core/settings_prefs.dart';
 import '../../core/settings_controller.dart';
 import '../security/setup_2fa_screen.dart';
-
+import '../auth/auth_screen.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'package:local_auth/local_auth.dart';
+import '../../services/biometric_service.dart';
+import '../security/change_password_page.dart';
+import '../security/backup_codes_page.dart';
 // ════════════════════════════════════════════════════════════════════════════
 //  SETTINGS SCREEN
 // ════════════════════════════════════════════════════════════════════════════
@@ -44,13 +49,13 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgLight,
+      backgroundColor: AppColors.background(context),
       appBar: AppBar(
         backgroundColor: AppColors.primaryOrange,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        title: const Text(
+        title: Text(
           'Settings',
           style: TextStyle(
             color: Colors.white,
@@ -169,45 +174,81 @@ class SettingsScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Clear Cache',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        content: const Text(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          'Clear Cache',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
           'This will clear all cached data. Your account and saved information will not be affected.',
           style: TextStyle(
-              fontSize: 14, color: AppColors.textMid, height: 1.5),
+            fontSize: 14,
+            color: AppColors.textMid,
+            height: 1.5,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel',
-                style: TextStyle(
-                    color: AppColors.textMid, fontWeight: FontWeight.w600)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: AppColors.textMid,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
+
+              await _clearCache();
+
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: const Text('Cache cleared successfully'),
+                  content: Text('Cache cleared successfully'),
                   backgroundColor: Colors.green,
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   margin: const EdgeInsets.all(16),
                 ),
               );
             },
-            child: const Text('Clear',
-                style: TextStyle(
-                    color: Color(0xFFEF4444), fontWeight: FontWeight.w700)),
+            child: Text(
+              'Clear',
+              style: TextStyle(
+                color: Color(0xFFEF4444),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+
+Future<void> _clearCache() async {
+  final tempDir = await getTemporaryDirectory();
+
+  if (await tempDir.exists()) {
+    final files = tempDir.listSync();
+
+    for (var file in files) {
+      try {
+        if (file is File) {
+          await file.delete();
+        } else if (file is Directory) {
+          await file.delete(recursive: true);
+        }
+      } catch (_) {}
+    }
+  }
 }
+  }
 
 // ════════════════════════════════════════════════════════════════════════════
 //  SHARED WIDGETS
@@ -222,7 +263,7 @@ class _SectionLabel extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 10, left: 2),
         child: Text(
           text,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
             color: AppColors.textLight,
@@ -244,7 +285,7 @@ class _SettingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
-          color: AppColors.cardWhite,
+          color: AppColors.card(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.border),
         ),
@@ -295,10 +336,10 @@ class _SettingsTile extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: AppColors.textDark,
+                      color: AppColors.text(context),
                     ),
                   ),
                 ),
@@ -309,8 +350,12 @@ class _SettingsTile extends StatelessWidget {
           ),
         ),
         if (!isLast)
-          const Divider(
-              height: 1, indent: 64, endIndent: 0, color: AppColors.border),
+          Divider(
+  height: 1,
+  indent: 64,
+  endIndent: 0,
+  color: AppColors.border,
+),
       ],
     );
   }
@@ -325,7 +370,7 @@ class _InnerPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: AppColors.bgLight,
+        backgroundColor: AppColors.background(context),
         appBar: AppBar(
           backgroundColor: AppColors.primaryOrange,
           foregroundColor: Colors.white,
@@ -333,7 +378,7 @@ class _InnerPage extends StatelessWidget {
           centerTitle: true,
           title: Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -393,16 +438,16 @@ class _PersistentSwitchTileState extends State<_PersistentSwitchTile> {
                   children: [
                     Text(
                       widget.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.textDark),
+                          color: AppColors.text(context)),
                     ),
                     if (widget.subtitle != null) ...[
                       const SizedBox(height: 2),
                       Text(
                         widget.subtitle!,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 12, color: AppColors.textMid),
                       ),
                     ],
@@ -421,7 +466,10 @@ class _PersistentSwitchTileState extends State<_PersistentSwitchTile> {
           ),
         ),
         if (!widget.isLast)
-          const Divider(height: 1, color: AppColors.border),
+          Divider(
+  height: 1,
+  color: AppColors.border,
+),
       ],
     );
   }
@@ -484,7 +532,7 @@ Future<void> _confirmDisable2FA() async {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
-      title: const Text(
+      title: Text(
         "Verify to Disable 2FA",
         style: TextStyle(fontWeight: FontWeight.w700),
       ),
@@ -492,7 +540,7 @@ Future<void> _confirmDisable2FA() async {
         mainAxisSize: MainAxisSize.min,
         children: [
 
-          const Text(
+          Text(
             "Enter your authenticator code or backup code to disable 2FA.",
           ),
 
@@ -513,14 +561,14 @@ Future<void> _confirmDisable2FA() async {
 
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text("Cancel"),
+          child: Text("Cancel"),
         ),
 
         TextButton(
           onPressed: () {
             Navigator.pop(context, controller.text.trim());
           },
-          child: const Text(
+          child: Text(
             "Verify",
             style: TextStyle(color: Colors.red),
           ),
@@ -628,7 +676,7 @@ bool verifyTOTP(String secret, String code) {
           child: Row(
             children: [
 
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -638,7 +686,7 @@ bool verifyTOTP(String secret, String code) {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                        color: AppColors.textDark,
+                        color: AppColors.text(context),
                       ),
                     ),
 
@@ -681,7 +729,7 @@ bool verifyTOTP(String secret, String code) {
                     ),
                   ),
 
-                  child: const Text(
+                  child: Text(
                     'Enable 2FA',
                     style: TextStyle(
                       fontSize: 13,
@@ -705,7 +753,10 @@ bool verifyTOTP(String secret, String code) {
           ),
         ),
 
-        const Divider(height: 1, color: AppColors.border),
+        Divider(
+  height: 1,
+  color: AppColors.border,
+)
 
       ],
     );
@@ -732,7 +783,7 @@ class _DarkModeSwitchTile extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -741,7 +792,7 @@ class _DarkModeSwitchTile extends StatelessWidget {
                           style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
-                              color: AppColors.textDark),
+                              color: AppColors.text(context)),
                         ),
                         SizedBox(height: 2),
                         Text(
@@ -760,7 +811,10 @@ class _DarkModeSwitchTile extends StatelessWidget {
                 ],
               ),
             ),
-            const Divider(height: 1, color: AppColors.border),
+            Divider(
+  height: 1,
+  color: AppColors.border,
+),
           ],
         );
       },
@@ -799,7 +853,7 @@ class _PersistentRadioGroupState extends State<_PersistentRadioGroup> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.cardWhite,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
       ),
@@ -844,7 +898,10 @@ class _PersistentRadioGroupState extends State<_PersistentRadioGroup> {
                 ),
               ),
               if (!isLast)
-                const Divider(height: 1, color: AppColors.border),
+                Divider(
+  height: 1,
+  color: AppColors.border,
+),
             ],
           );
         }),
@@ -991,9 +1048,13 @@ class LocationPreferencesPage extends StatelessWidget {
 //  PRIVACY & SECURITY PAGE
 // ════════════════════════════════════════════════════════════════════════════
 
-class PrivacySecurityPage extends StatelessWidget {
+class PrivacySecurityPage extends StatefulWidget {
   const PrivacySecurityPage({super.key});
 
+  @override
+  State<PrivacySecurityPage> createState() => _PrivacySecurityPageState();
+}
+class _PrivacySecurityPageState extends State<PrivacySecurityPage> {
   @override
   Widget build(BuildContext context) {
     return _InnerPage(
@@ -1002,16 +1063,65 @@ class PrivacySecurityPage extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
         children: [
           const _SectionLabel(text: 'SECURITY'),
-          _SettingsCard(children: [
-            const _Enable2FATile(),
-            const _PersistentSwitchTile(
-              title: 'Biometric Login',
-              subtitle: 'Use fingerprint or face ID to sign in',
-              prefKey: SettingsPrefs.kSecurityBiometric,
-              defaultValue: true,
-              isLast: true,
+StreamBuilder<DocumentSnapshot>(
+  stream: FirebaseFirestore.instance
+      .collection('users')
+      .doc(FirebaseAuth.instance.currentUser!.uid)
+      .snapshots(),
+  builder: (context, snapshot) {
+
+    bool twoFAEnabled = false;
+
+    if (snapshot.hasData && snapshot.data!.data() != null) {
+      twoFAEnabled =
+          (snapshot.data!.data() as Map<String, dynamic>)['twoFAEnabled'] ?? false;
+    }
+
+    return _SettingsCard(children: [
+
+      const _Enable2FATile(),
+
+      const _PersistentSwitchTile(
+        title: 'Biometric Login',
+        subtitle: 'Use fingerprint or face ID to sign in',
+        prefKey: SettingsPrefs.kSecurityBiometric,
+        defaultValue: true,
+      ),
+
+      _SettingsTile(
+        icon: Icons.password,
+        iconColor: const Color(0xFF6366F1),
+        title: 'Change Password',
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ChangePasswordPage(),
             ),
-          ]),
+          );
+        },
+      ),
+
+      /// SHOW ONLY IF 2FA ENABLED
+      if (twoFAEnabled)
+        _SettingsTile(
+          icon: Icons.key,
+          iconColor: const Color(0xFFF59E0B),
+          title: 'View Backup Codes',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const BackupCodesPage(),
+              ),
+            );
+          },
+          isLast: true,
+        ),
+
+    ]);
+  },
+),
           const SizedBox(height: 24),
           const _SectionLabel(text: 'PRIVACY'),
           _SettingsCard(children: [
@@ -1038,7 +1148,7 @@ class PrivacySecurityPage extends StatelessWidget {
           const _SectionLabel(text: 'ACCOUNT'),
           Container(
             decoration: BoxDecoration(
-              color: AppColors.cardWhite,
+              color: AppColors.card(context),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.border),
             ),
@@ -1061,7 +1171,7 @@ class PrivacySecurityPage extends StatelessWidget {
                           size: 18, color: Color(0xFFEF4444)),
                     ),
                     const SizedBox(width: 14),
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Delete Account',
                         style: TextStyle(
@@ -1083,38 +1193,165 @@ class PrivacySecurityPage extends StatelessWidget {
     );
   }
 
-  void _showDeleteDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Delete Account',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        content: const Text(
-          'This action is permanent and cannot be undone. All your data will be removed.',
-          style: TextStyle(
-              fontSize: 14, color: AppColors.textMid, height: 1.5),
+void _showDeleteDialog(BuildContext context) {
+  final passwordController = TextEditingController();
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      title: Text(
+        'Delete Account',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel',
-                style: TextStyle(
-                    color: AppColors.textMid, fontWeight: FontWeight.w600)),
+      ),
+
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+
+          Text(
+            'This action is permanent and cannot be undone. All your data will be removed.',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textMid,
+              height: 1.5,
+            ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Delete',
-                style: TextStyle(
-                    color: Color(0xFFEF4444), fontWeight: FontWeight.w700)),
+
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: passwordController,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: "Enter your password",
+              border: OutlineInputBorder(),
+            ),
           ),
+
         ],
       ),
-    );
-  }
+
+      actions: [
+
+        /// CANCEL
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Cancel',
+            style: TextStyle(
+              color: AppColors.textMid,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+
+        /// DELETE ACCOUNT
+        TextButton(
+          onPressed: () async {
+
+            final password = passwordController.text.trim();
+            if (password.isEmpty) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text("Please enter your password"),
+      backgroundColor: Colors.red,
+    ),
+  );
+  return;
 }
 
+            Navigator.pop(context);
+
+            final user = FirebaseAuth.instance.currentUser;
+            if (user == null) return;
+
+            final uid = user.uid;
+            final email = user.email;
+
+            /// show loading
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (_) => const Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+
+            try {
+
+              /// REAUTHENTICATE USER
+              final credential = EmailAuthProvider.credential(
+                email: email!,
+                password: password,
+              );
+
+              await user.reauthenticateWithCredential(credential);
+
+              /// DELETE FIREBASE AUTH USER
+              await user.delete();
+
+              /// DELETE FIRESTORE USER DATA
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(uid)
+                  .delete();
+
+              if (!context.mounted) return;
+
+              Navigator.pop(context);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Account deleted successfully"),
+                  backgroundColor: Colors.green,
+                ),
+              );
+
+              /// REDIRECT TO LOGIN
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (_) => const AuthScreen(isLogin: true),
+                ),
+                (route) => false,
+              );
+
+            } catch (e) {
+
+              if (!context.mounted) return;
+
+              Navigator.pop(context);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("Delete failed: $e"),
+                  backgroundColor: Colors.red,
+                ),
+              );
+
+            }
+
+          },
+          child: Text(
+            'Delete',
+            style: TextStyle(
+              color: Color(0xFFEF4444),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+
+      ],
+    ),
+  );
+}
+}
 // ════════════════════════════════════════════════════════════════════════════
 //  APPEARANCE PAGE
 // ════════════════════════════════════════════════════════════════════════════
@@ -1269,17 +1506,17 @@ class AboutAppPage extends StatelessWidget {
                       color: Colors.white, size: 40),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Staynear',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.textDark,
+                    color: AppColors.text(context),
                     letterSpacing: 0.2,
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Version 1.0.0 (Build 100)',
                   style:
                       TextStyle(fontSize: 13, color: AppColors.textMid),
@@ -1291,7 +1528,7 @@ class AboutAppPage extends StatelessWidget {
           const _SectionLabel(text: 'APP INFO'),
           Container(
             decoration: BoxDecoration(
-              color: AppColors.cardWhite,
+              color: AppColors.card(context),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.border),
             ),
@@ -1312,7 +1549,7 @@ class AboutAppPage extends StatelessWidget {
           const _SectionLabel(text: 'CONTACT'),
           Container(
             decoration: BoxDecoration(
-              color: AppColors.cardWhite,
+              color: AppColors.card(context),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.border),
             ),
@@ -1360,17 +1597,20 @@ class _InfoRow extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(label,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 14, color: AppColors.textMid)),
               Text(value,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: AppColors.textDark)),
+                      color: AppColors.text(context))),
             ],
           ),
         ),
-        if (!isLast) const Divider(height: 1, color: AppColors.border),
+        if (!isLast) Divider(
+  height: 1,
+  color: AppColors.border,
+),
       ],
     );
   }
@@ -1530,7 +1770,7 @@ class _DocHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.cardWhite,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
       ),
@@ -1551,13 +1791,13 @@ class _DocHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textDark)),
+                        color: AppColors.text(context))),
                 const SizedBox(height: 3),
                 Text(subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12, color: AppColors.textMid)),
               ],
             ),
@@ -1586,7 +1826,7 @@ class _DocSection extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.cardWhite,
+          color: AppColors.card(context),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.border),
         ),
@@ -1594,13 +1834,13 @@ class _DocSection extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textDark)),
+                    color: AppColors.text(context))),
             const SizedBox(height: 8),
             Text(body,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 13, color: AppColors.textMid, height: 1.65)),
           ],
         ),

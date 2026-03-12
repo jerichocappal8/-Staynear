@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import '../profile/profile_screen.dart';
+import 'explore_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -14,7 +15,7 @@ class _MainShellState extends State<MainShell> {
 
   final List<Widget> pages = const [
     HomeScreen(),
-    Center(child: Text("Explore")),
+    ExploreScreen(),
     Center(child: Text("Chat")),
     Center(child: Text("Saved")),
     ProfileScreen(),

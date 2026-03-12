@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,19 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart'; // add intl to pubspec.yaml
-
-// ── Brand palette ─────────────────────────────────────────────────────────────
-const _kOrange      = Color(0xFFFF6B00);
-const _kOrangeLight = Color(0xFFFF8C38);
-const _kOrangeDark  = Color(0xFFE05A00);
-const _kOrangeSurf  = Color(0xFFFFF3EB);
-const _kOrangeBdr   = Color(0xFFFFD4AE);
-const _kSuccess     = Color(0xFF34C759);
-const _kError       = Color(0xFFFF3B30);
-const _kTextPri     = Color(0xFF1A1A1A);
-const _kTextSec     = Color(0xFF6B6B6B);
-const _kBg          = Color(0xFFF5F5F7);
-const _kCard        = Colors.white;
+import 'package:staynear/core/app_colors.dart';
 
 // ── PH Address data ───────────────────────────────────────────────────────────
 const _phRegions = [
@@ -41,7 +28,6 @@ const _phRegions = [
   'BARMM',
   'CAR – Cordillera Administrative Region',
 ];
-
 const _phIdTypes = [
   'Philippine System ID (PhilSys)',
   'Passport',
@@ -54,22 +40,17 @@ const _phIdTypes = [
   'PWD ID',
   'Other Government-Issued ID',
 ];
-
 // ─────────────────────────────────────────────────────────────────────────────
 class HostApplicationScreen extends StatefulWidget {
   const HostApplicationScreen({super.key});
-
   @override
   State<HostApplicationScreen> createState() => _HostApplicationScreenState();
 }
-
 class _HostApplicationScreenState extends State<HostApplicationScreen>
     with TickerProviderStateMixin {
-
   // ── Wizard ────────────────────────────────────────────────────────────────
   int _step = 0;
   final _pageCtrl = PageController();
-
   // ── Step 1 – Identity ─────────────────────────────────────────────────────
   final lastNameCtrl   = TextEditingController();
   final firstNameCtrl  = TextEditingController();
@@ -77,7 +58,6 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
   final phoneCtrl      = TextEditingController();
   DateTime? _dob;
   String? _gender;
-
   String get _fullName {
     final parts = [
       firstNameCtrl.text.trim(),
@@ -86,7 +66,6 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
     ].where((p) => p.isNotEmpty);
     return parts.join(' ');
   }
-
   // ── Step 2 – Address ──────────────────────────────────────────────────────
   String? _region;
   final provinceCtrl  = TextEditingController();
@@ -94,7 +73,6 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
   final barangayCtrl  = TextEditingController();
   final streetCtrl    = TextEditingController();
   final zipCtrl       = TextEditingController();
-
   // ── Step 3 – Documents ────────────────────────────────────────────────────
   File? profileImage;
   File? governmentIdImage;
@@ -102,20 +80,15 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
   String? _idType;
   bool _consentGiven  = false;
   bool _showSecondary = false;
-
   // ── Misc ──────────────────────────────────────────────────────────────────
   bool loading         = false;
   bool profileRequired = false;
   final picker         = ImagePicker();
-
   final Map<String, String?> _step1Errors = {};
   final Map<String, String?> _step2Errors = {};
   final Map<String, String?> _step3Errors = {};
-
   late final AnimationController _heroAnim;
-
   // ─────────────────────────────────────────────────────────────────────────
-
   @override
   void initState() {
     super.initState();
@@ -128,7 +101,6 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
       c.addListener(() => setState(() {}));
     }
   }
-
   @override
   void dispose() {
     _heroAnim.dispose();
@@ -139,7 +111,6 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
     }
     super.dispose();
   }
-
   Future<void> _checkProfilePhoto() async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
@@ -149,9 +120,7 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
     }
     _heroAnim.forward();
   }
-
   // ── Validation ────────────────────────────────────────────────────────────
-
   bool _validateStep1() {
     final errs = <String, String?>{};
     if (lastNameCtrl.text.trim().isEmpty)  errs['lastName']  = 'Last name is required';
@@ -171,7 +140,6 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
     setState(() { _step1Errors.clear(); _step1Errors.addAll(errs); });
     return errs.isEmpty;
   }
-
   bool _validateStep2() {
     final errs = <String, String?>{};
     if (_region == null)                  errs['region']   = 'Select your region';
@@ -182,7 +150,6 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
     setState(() { _step2Errors.clear(); _step2Errors.addAll(errs); });
     return errs.isEmpty;
   }
-
   bool _validateStep3() {
     final errs = <String, String?>{};
     if (profileRequired && profileImage == null) errs['profile'] = 'Profile photo is required';
@@ -192,24 +159,19 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
     setState(() { _step3Errors.clear(); _step3Errors.addAll(errs); });
     return errs.isEmpty;
   }
-
   // ── Navigation ────────────────────────────────────────────────────────────
-
   void _nextStep() {
     final valid = _step == 0 ? _validateStep1() : _validateStep2();
     if (!valid) return;
     setState(() => _step++);
     _pageCtrl.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
   }
-
   void _prevStep() {
     if (_step == 0) { Navigator.pop(context); return; }
     setState(() => _step--);
     _pageCtrl.previousPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
   }
-
   // ── Submit ────────────────────────────────────────────────────────────────
-
   Future<void> _submit() async {
     if (!_validateStep3()) return;
     final uid = FirebaseAuth.instance.currentUser!.uid;
@@ -224,51 +186,42 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
       if (secondaryCardImage != null) {
         secUrl = await _uploadImage(secondaryCardImage!, 'host_verification/$uid/secondary_card.jpg');
       }
-final age = DateTime.now().difference(_dob!).inDays ~/ 365;
-
-await FirebaseFirestore.instance
-    .collection('host_requests')
-    .doc(uid)
-    .set({
-  'userId': uid,
-
-  // Name
-  'firstName': firstNameCtrl.text.trim(),
-  'middleName': middleNameCtrl.text.trim(),
-  'lastName': lastNameCtrl.text.trim(),
-  'fullName': _fullName,
-
-  // Contact
-  'phone': phoneCtrl.text.trim(),
-
-  // Personal
-  'dateOfBirth': _dob!.toIso8601String(),
-  'age': age,
-  'gender': _gender,
-
-  // ✅ Structured address (THIS is the pro tip)
-  'address': {
-    'street': streetCtrl.text.trim(),
-    'barangay': barangayCtrl.text.trim(),
-    'city': cityCtrl.text.trim(),
-    'province': provinceCtrl.text.trim(),
-    'region': _region,
-    'zipCode': zipCtrl.text.trim(),
-  },
-
-  // Documents
-  'idType': _idType,
-  'governmentIdUrl': govUrl,
-  'secondaryIdUrl': secUrl,
-
-  // Status
-  'status': 'pending',
-  'submittedAt': FieldValue.serverTimestamp(),
-});
-
+      final age = DateTime.now().difference(_dob!).inDays ~/ 365;
+      await FirebaseFirestore.instance
+          .collection('host_requests')
+          .doc(uid)
+          .set({
+        'userId': uid,
+        // Name
+        'firstName': firstNameCtrl.text.trim(),
+        'middleName': middleNameCtrl.text.trim(),
+        'lastName': lastNameCtrl.text.trim(),
+        'fullName': _fullName,
+        // Contact
+        'phone': phoneCtrl.text.trim(),
+        // Personal
+        'dateOfBirth': _dob!.toIso8601String(),
+        'age': age,
+        'gender': _gender,
+        // Structured address
+        'address': {
+          'street': streetCtrl.text.trim(),
+          'barangay': barangayCtrl.text.trim(),
+          'city': cityCtrl.text.trim(),
+          'province': provinceCtrl.text.trim(),
+          'region': _region,
+          'zipCode': zipCtrl.text.trim(),
+        },
+        // Documents
+        'idType': _idType,
+        'governmentIdUrl': govUrl,
+        'secondaryIdUrl': secUrl,
+        // Status
+        'status': 'pending',
+        'submittedAt': FieldValue.serverTimestamp(),
+      });
       await FirebaseFirestore.instance
           .collection('users').doc(uid).update({'hostRequest': 'pending'});
-
       setState(() => loading = false);
       if (!mounted) return;
       Navigator.pop(context);
@@ -278,31 +231,26 @@ await FirebaseFirestore.instance
       _showSnack("Something went wrong. Please try again.", isError: true);
     }
   }
-
   // ── Helpers ───────────────────────────────────────────────────────────────
-
   Future<String> _uploadImage(File file, String path) async {
     final ref = FirebaseStorage.instance.ref(path);
     await ref.putFile(file);
     return ref.getDownloadURL();
   }
-
   Future<File?> _pickImage() async {
     final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return null;
     return File(picked.path);
   }
-
   void _showSnack(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white)),
-      backgroundColor: isError ? _kError : _kOrangeDark,
+      backgroundColor: isError ? AppColors.danger : AppColors.primaryOrange,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.all(16),
     ));
   }
-
   Future<void> _pickDob() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -312,22 +260,20 @@ await FirebaseFirestore.instance
       lastDate: DateTime(now.year - 15),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: _kOrange, onPrimary: Colors.white),
+          colorScheme: const ColorScheme.light(primary: AppColors.primaryOrange, onPrimary: Colors.white),
         ),
         child: child!,
       ),
     );
     if (picked != null) setState(() { _dob = picked; _step1Errors.remove('dob'); });
   }
-
   // ─────────────────────────────────────────────────────────────────────────
   // BUILD
   // ─────────────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: AppColors.background(context),
       body: Column(
         children: [
           _buildHeader(),
@@ -344,9 +290,7 @@ await FirebaseFirestore.instance
       ),
     );
   }
-
   // ── Header ────────────────────────────────────────────────────────────────
-
   Widget _buildHeader() {
     const titles    = ['Your Identity',    'Your Address',       'Verification Docs'];
     const subtitles = [
@@ -356,11 +300,8 @@ await FirebaseFirestore.instance
     ];
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [_kOrangeDark, _kOrangeLight],
-        ),
-      ),
+  color: AppColors.primaryOrange,
+),
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -407,13 +348,11 @@ await FirebaseFirestore.instance
       ),
     );
   }
-
   // ── Step indicator ────────────────────────────────────────────────────────
-
   Widget _buildStepIndicator() {
     const labels = ['Identity', 'Address', 'Documents'];
     return Container(
-      color: _kOrangeDark,
+      color: AppColors.primaryOrange,
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       child: Row(
         children: List.generate(3, (i) {
@@ -431,10 +370,10 @@ await FirebaseFirestore.instance
                   ),
                   child: Center(
                     child: done
-                        ? const Icon(Icons.check, size: 13, color: _kOrange)
+                        ? const Icon(Icons.check, size: 13, color: AppColors.primaryOrange)
                         : Text('${i + 1}', style: TextStyle(
                             fontSize: 11, fontWeight: FontWeight.w800,
-                            color: current ? _kOrange : Colors.white.withOpacity(0.5))),
+                            color: current ? AppColors.primaryOrange : Colors.white.withOpacity(0.5))),
                   ),
                 ),
                 const SizedBox(width: 5),
@@ -460,15 +399,13 @@ await FirebaseFirestore.instance
       ),
     );
   }
-
   // ── Bottom bar ────────────────────────────────────────────────────────────
-
   Widget _buildBottomBar() {
     final isLast = _step == 2;
     return Container(
       padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 12),
       decoration: BoxDecoration(
-        color: _kCard,
+        color: AppColors.card(context),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.07), blurRadius: 12, offset: const Offset(0, -3))],
       ),
       child: SizedBox(
@@ -476,8 +413,8 @@ await FirebaseFirestore.instance
         child: ElevatedButton(
           onPressed: loading ? null : (isLast ? _submit : _nextStep),
           style: ElevatedButton.styleFrom(
-            backgroundColor: _kOrange, foregroundColor: Colors.white,
-            disabledBackgroundColor: _kOrangeLight.withOpacity(0.4),
+            backgroundColor: AppColors.primaryOrange, foregroundColor: Colors.white,
+            disabledBackgroundColor: AppColors.orangeLight.withOpacity(0.4),
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
@@ -494,11 +431,9 @@ await FirebaseFirestore.instance
       ),
     );
   }
-
   // ══════════════════════════════════════════════════════════════════════════
   // STEP 1 – IDENTITY
   // ══════════════════════════════════════════════════════════════════════════
-
   Widget _buildStep1() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -507,7 +442,6 @@ await FirebaseFirestore.instance
         const SizedBox(height: 4),
         _hint('Enter your name exactly as it appears on your government ID.'),
         const SizedBox(height: 12),
-
         _FormCard(children: [
           _FormField(
             controller: lastNameCtrl, label: 'Last Name (Surname)',
@@ -531,16 +465,13 @@ await FirebaseFirestore.instance
             ]),
           ),
         ]),
-
         if (_fullName.isNotEmpty) ...[
           const SizedBox(height: 10),
           _FullNamePreview(name: _fullName),
         ],
-
         const SizedBox(height: 22),
         _sectionLabel(Icons.cake_outlined, 'Date of Birth & Gender'),
         const SizedBox(height: 12),
-
         _FormCard(children: [
           GestureDetector(
             onTap: _pickDob,
@@ -548,23 +479,23 @@ await FirebaseFirestore.instance
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(children: [
                 Icon(Icons.calendar_today_outlined, size: 19,
-                    color: _step1Errors['dob'] != null ? _kError : _kOrangeLight),
+                    color: _step1Errors['dob'] != null ? AppColors.danger : AppColors.orangeLight),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Date of Birth', style: TextStyle(
-                      fontSize: 11.5, color: _step1Errors['dob'] != null ? _kError : _kTextSec)),
+                      fontSize: 11.5, color: _step1Errors['dob'] != null ? AppColors.danger : AppColors.textMid)),
                   const SizedBox(height: 2),
                   Text(
                     _dob != null ? DateFormat('MMMM d, yyyy').format(_dob!) : 'Select date',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500,
-                        color: _dob != null ? _kTextPri : _kTextSec.withOpacity(0.5)),
+                        color: _dob != null ? AppColors.text(context) : AppColors.textMid.withOpacity(0.5)),
                   ),
                   if (_step1Errors['dob'] != null)
                     Padding(padding: const EdgeInsets.only(top: 3),
                         child: Text(_step1Errors['dob']!,
-                            style: const TextStyle(color: _kError, fontSize: 11))),
+                            style: const TextStyle(color: AppColors.danger, fontSize: 11))),
                 ])),
-                const Icon(Icons.chevron_right, color: _kTextSec, size: 20),
+                const Icon(Icons.chevron_right, color: AppColors.textMid, size: 20),
               ]),
             ),
           ),
@@ -573,10 +504,10 @@ await FirebaseFirestore.instance
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(children: [
-                const Icon(Icons.info_outline, size: 14, color: _kTextSec),
+                const Icon(Icons.info_outline, size: 14, color: AppColors.textMid),
                 const SizedBox(width: 8),
                 Text('Age: ${DateTime.now().difference(_dob!).inDays ~/ 365} years old',
-                    style: const TextStyle(fontSize: 12.5, color: _kTextSec)),
+                    style: const TextStyle(fontSize: 12.5, color: AppColors.textMid)),
               ]),
             ),
           ],
@@ -588,11 +519,9 @@ await FirebaseFirestore.instance
             onChanged: (v) => setState(() { _gender = v; _step1Errors.remove('gender'); }),
           ),
         ]),
-
         const SizedBox(height: 22),
         _sectionLabel(Icons.phone_outlined, 'Contact'),
         const SizedBox(height: 12),
-
         _FormCard(children: [
           _FormField(
             controller: phoneCtrl, label: 'Phone Number',
@@ -605,16 +534,13 @@ await FirebaseFirestore.instance
             onChanged: (_) => setState(() => _step1Errors.remove('phone')),
           ),
         ]),
-
         const SizedBox(height: 80),
       ]),
     );
   }
-
   // ══════════════════════════════════════════════════════════════════════════
   // STEP 2 – ADDRESS
   // ══════════════════════════════════════════════════════════════════════════
-
   Widget _buildStep2() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -623,7 +549,6 @@ await FirebaseFirestore.instance
         const SizedBox(height: 4),
         _hint('Select your region first, then fill in the remaining fields.'),
         const SizedBox(height: 12),
-
         _FormCard(children: [
           _DropdownField<String>(
             value: _region, label: 'Region', icon: Icons.public_outlined,
@@ -643,11 +568,9 @@ await FirebaseFirestore.instance
             onChanged: (_) => setState(() => _step2Errors.remove('city')),
           ),
         ]),
-
         const SizedBox(height: 22),
         _sectionLabel(Icons.signpost_outlined, 'Specific Location'),
         const SizedBox(height: 12),
-
         _FormCard(children: [
           _FormField(
             controller: barangayCtrl, label: 'Barangay',
@@ -669,7 +592,6 @@ await FirebaseFirestore.instance
             error: null, onChanged: (_) {},
           ),
         ]),
-
         if (_region != null && cityCtrl.text.isNotEmpty && streetCtrl.text.isNotEmpty) ...[
           const SizedBox(height: 16),
           _AddressPreview(
@@ -678,21 +600,17 @@ await FirebaseFirestore.instance
             region: _region!, zip: zipCtrl.text.trim(),
           ),
         ],
-
         const SizedBox(height: 80),
       ]),
     );
   }
-
   // ══════════════════════════════════════════════════════════════════════════
   // STEP 3 – DOCUMENTS
   // ══════════════════════════════════════════════════════════════════════════
-
   Widget _buildStep3() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
         if (profileRequired) ...[
           _sectionLabel(Icons.person_outline, 'Profile Photo'),
           const SizedBox(height: 4),
@@ -707,12 +625,10 @@ await FirebaseFirestore.instance
           ),
           const SizedBox(height: 24),
         ],
-
         _sectionLabel(Icons.verified_user_outlined, 'Government ID'),
         const SizedBox(height: 4),
         _hint('Upload a clear, unobstructed photo of your valid government ID.'),
         const SizedBox(height: 12),
-
         _FormCard(children: [
           _DropdownField<String>(
             value: _idType, label: 'ID Type', icon: Icons.credit_card_outlined,
@@ -730,14 +646,13 @@ await FirebaseFirestore.instance
             if (img != null) setState(() { governmentIdImage = img; _step3Errors.remove('govId'); });
           },
         ),
-
         const SizedBox(height: 22),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           _sectionLabel(Icons.school_outlined, 'Secondary ID'),
           GestureDetector(
             onTap: () => setState(() => _showSecondary = !_showSecondary),
             child: Text(_showSecondary ? 'Hide' : '+ Add (Optional)',
-                style: const TextStyle(color: _kOrange, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                style: const TextStyle(color: AppColors.primaryOrange, fontSize: 12.5, fontWeight: FontWeight.w700)),
           ),
         ]),
         if (_showSecondary) ...[
@@ -754,7 +669,6 @@ await FirebaseFirestore.instance
             },
           ),
         ],
-
         const SizedBox(height: 20),
         _ExpandableInfo(
           title: 'Why do we need your documents?',
@@ -763,26 +677,24 @@ await FirebaseFirestore.instance
               'Only our trust & safety team reviews them during the approval process.',
         ),
         const SizedBox(height: 14),
-
         // Security badge
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: _kOrangeSurf, borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _kOrangeBdr),
+            color: AppColors.orangeLight, borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
           ),
           child: Row(children: [
-            const Icon(Icons.lock_outline, color: _kOrange, size: 18),
+            const Icon(Icons.lock_outline, color: AppColors.primaryOrange, size: 18),
             const SizedBox(width: 10),
             const Expanded(child: Text(
               'Your data is encrypted and reviewed only by our trust & safety team. '
               'Usually approved within 24 hours.',
-              style: TextStyle(color: _kOrangeDark, fontSize: 12.5, height: 1.5),
+              style: TextStyle(color: AppColors.primaryOrange, fontSize: 12.5, height: 1.5),
             )),
           ]),
         ),
         const SizedBox(height: 14),
-
         // Consent
         GestureDetector(
           onTap: () => setState(() {
@@ -793,11 +705,11 @@ await FirebaseFirestore.instance
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: _consentGiven ? _kOrangeSurf : _kCard,
+              color: _consentGiven ? AppColors.orangeLight : AppColors.card(context),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: _step3Errors['consent'] != null ? _kError
-                    : _consentGiven ? _kOrange : Colors.grey.shade300,
+                color: _step3Errors['consent'] != null ? AppColors.danger
+                    : _consentGiven ? AppColors.primaryOrange : Colors.grey.shade300,
               ),
             ),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -805,75 +717,66 @@ await FirebaseFirestore.instance
                 duration: const Duration(milliseconds: 200),
                 width: 22, height: 22,
                 decoration: BoxDecoration(
-                  color: _consentGiven ? _kOrange : Colors.transparent,
+                  color: _consentGiven ? AppColors.primaryOrange : Colors.transparent,
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: _consentGiven ? _kOrange : Colors.grey.shade400, width: 1.5),
+                    color: _consentGiven ? AppColors.primaryOrange : Colors.grey.shade400, width: 1.5),
                 ),
                 child: _consentGiven ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
               ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text(
+                Text(
                   'I confirm that all documents and information I have provided are authentic, accurate, and belong to me.',
-                  style: TextStyle(fontSize: 13, color: _kTextPri, height: 1.4),
+                  style: TextStyle(fontSize: 13, color: AppColors.text(context), height: 1.4),
                 ),
                 if (_step3Errors['consent'] != null)
                   Padding(padding: const EdgeInsets.only(top: 4),
                       child: Text(_step3Errors['consent']!,
-                          style: const TextStyle(color: _kError, fontSize: 11))),
+                          style: const TextStyle(color: AppColors.danger, fontSize: 11))),
               ])),
             ]),
           ),
         ),
-
         const SizedBox(height: 80),
       ]),
     );
   }
-
   // ── Shared helpers ────────────────────────────────────────────────────────
-
   Widget _sectionLabel(IconData icon, String label) => Row(children: [
-    Icon(icon, size: 15, color: _kOrange), const SizedBox(width: 6),
+    Icon(icon, size: 15, color: AppColors.primaryOrange), const SizedBox(width: 6),
     Text(label.toUpperCase(), style: const TextStyle(
-      fontSize: 10.5, fontWeight: FontWeight.w800, color: _kOrange, letterSpacing: 1.4)),
+      fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.primaryOrange, letterSpacing: 1.4)),
   ]);
-
   Widget _hint(String text) => Text(text,
-      style: const TextStyle(fontSize: 12.5, color: _kTextSec, height: 1.4));
-
+      style: const TextStyle(fontSize: 12.5, color: AppColors.textMid, height: 1.4));
   Widget _divider() => Divider(height: 1, indent: 16, endIndent: 16, color: Colors.grey.shade100);
-
   Widget _phPrefix() => Padding(
     padding: const EdgeInsets.only(left: 16, right: 4),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       const Text('🇵🇭', style: TextStyle(fontSize: 16)),
       const SizedBox(width: 4),
-      Text('+63', style: TextStyle(fontSize: 13, color: _kTextSec, fontWeight: FontWeight.w600)),
+      Text('+63', style: const TextStyle(fontSize: 13, color: AppColors.textMid, fontWeight: FontWeight.w600)),
       Container(width: 1, height: 18, color: Colors.grey.shade300,
           margin: const EdgeInsets.symmetric(horizontal: 8)),
     ]),
   );
 }
-
 // ══════════════════════════════════════════════════════════════════════════════
 // REUSABLE COMPONENTS
 // ══════════════════════════════════════════════════════════════════════════════
-
 class _FormCard extends StatelessWidget {
   const _FormCard({required this.children});
   final List<Widget> children;
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
-      color: _kCard, borderRadius: BorderRadius.circular(16),
+      color: AppColors.card(context), borderRadius: BorderRadius.circular(16),
       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.055), blurRadius: 14, offset: const Offset(0, 4))],
     ),
     child: Column(children: children),
   );
 }
-
 class _FormField extends StatelessWidget {
   const _FormField({
     required this.controller, required this.label, required this.icon,
@@ -888,7 +791,6 @@ class _FormField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final Widget? prefix;
   final ValueChanged<String> onChanged;
-
   @override
   Widget build(BuildContext context) {
     return TextField(
@@ -896,29 +798,28 @@ class _FormField extends StatelessWidget {
       keyboardType: inputType,
       inputFormatters: inputFormatters,
       onChanged: onChanged,
-      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: _kTextPri),
-      cursorColor: _kOrange,
+      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.text(context)),
+      cursorColor: AppColors.primaryOrange,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        hintStyle: TextStyle(fontSize: 13, color: _kTextSec.withOpacity(0.45)),
-        labelStyle: TextStyle(fontSize: 13, color: error != null ? _kError : _kTextSec),
-        floatingLabelStyle: TextStyle(color: error != null ? _kError : _kOrange, fontSize: 12),
-        prefixIcon: prefix ?? (icon != null ? Icon(icon, size: 19, color: _kOrangeLight) : null),
+        hintStyle: TextStyle(fontSize: 13, color: AppColors.textMid.withOpacity(0.45)),
+        labelStyle: TextStyle(fontSize: 13, color: error != null ? AppColors.danger : AppColors.textMid),
+        floatingLabelStyle: TextStyle(color: error != null ? AppColors.danger : AppColors.primaryOrange, fontSize: 12),
+        prefixIcon: prefix ?? (icon != null ? Icon(icon, size: 19, color: AppColors.orangeLight) : null),
         suffixIcon: error != null
-            ? const Icon(Icons.error_outline, size: 18, color: _kError)
+            ? const Icon(Icons.error_outline, size: 18, color: AppColors.danger)
             : controller.text.isNotEmpty
-                ? const Icon(Icons.check_circle_outline, size: 18, color: _kSuccess)
+                ? const Icon(Icons.check_circle_outline, size: 18, color: Colors.green)
                 : null,
         errorText: error,
-        errorStyle: const TextStyle(fontSize: 11, color: _kError),
+        errorStyle: const TextStyle(fontSize: 11, color: AppColors.danger),
         border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
   }
 }
-
 class _DropdownField<T> extends StatelessWidget {
   const _DropdownField({
     required this.value,
@@ -928,28 +829,26 @@ class _DropdownField<T> extends StatelessWidget {
     required this.items,
     required this.onChanged,
   });
-
   final T? value;
   final String label;
   final IconData icon;
   final String? error;
   final List<String> items;
   final ValueChanged<T?> onChanged;
-
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     child: DropdownButtonFormField<T>(
-      isExpanded: true, // ✅ FIXES OVERFLOW
+      isExpanded: true,
       value: value,
       onChanged: onChanged,
-      dropdownColor: _kCard,
-      icon: const Icon(Icons.expand_more, color: _kOrange),
+      dropdownColor: AppColors.card(context),
+      icon: const Icon(Icons.expand_more, color: AppColors.primaryOrange),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(fontSize: 13, color: error != null ? _kError : _kTextSec),
-        floatingLabelStyle: TextStyle(color: error != null ? _kError : _kOrange, fontSize: 12),
-        prefixIcon: Icon(icon, size: 19, color: _kOrangeLight),
+        labelStyle: TextStyle(fontSize: 13, color: error != null ? AppColors.danger : AppColors.textMid),
+        floatingLabelStyle: TextStyle(color: error != null ? AppColors.danger : AppColors.primaryOrange, fontSize: 12),
+        prefixIcon: Icon(icon, size: 19, color: AppColors.orangeLight),
         errorText: error,
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
@@ -960,14 +859,13 @@ class _DropdownField<T> extends StatelessWidget {
         value: item as T,
         child: Text(
           item,
-          overflow: TextOverflow.ellipsis, // ✅ prevents long region text overflow
-          style: const TextStyle(fontSize: 13.5, color: _kTextPri),
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 13.5, color: AppColors.text(context)),
         ),
       )).toList(),
     ),
   );
 }
-
 class _FullNamePreview extends StatelessWidget {
   const _FullNamePreview({required this.name});
   final String name;
@@ -978,21 +876,20 @@ class _FullNamePreview extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: _kOrangeSurf, borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _kOrangeBdr),
+        color: AppColors.orangeLight, borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(children: [
-        const Icon(Icons.preview_outlined, size: 15, color: _kOrange),
+        const Icon(Icons.preview_outlined, size: 15, color: AppColors.primaryOrange),
         const SizedBox(width: 8),
-        const Text('Full name: ', style: TextStyle(fontSize: 12.5, color: _kOrangeDark)),
+        const Text('Full name: ', style: TextStyle(fontSize: 12.5, color: AppColors.primaryOrange)),
         Expanded(child: Text(name,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _kOrangeDark),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primaryOrange),
           overflow: TextOverflow.ellipsis)),
       ]),
     ),
   );
 }
-
 class _AddressPreview extends StatelessWidget {
   const _AddressPreview({
     required this.street, required this.barangay, required this.city,
@@ -1006,24 +903,23 @@ class _AddressPreview extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _kOrangeSurf, borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _kOrangeBdr),
+        color: AppColors.orangeLight, borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Icon(Icons.location_on_outlined, color: _kOrange, size: 18),
+        const Icon(Icons.location_on_outlined, color: AppColors.primaryOrange, size: 18),
         const SizedBox(width: 8),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Address preview',
-              style: TextStyle(fontSize: 11, color: _kOrange, fontWeight: FontWeight.w700)),
+              style: TextStyle(fontSize: 11, color: AppColors.primaryOrange, fontWeight: FontWeight.w700)),
           const SizedBox(height: 3),
           Text(parts.join(', '),
-              style: const TextStyle(fontSize: 13, color: _kOrangeDark, height: 1.4)),
+              style: const TextStyle(fontSize: 13, color: AppColors.primaryOrange, height: 1.4)),
         ])),
       ]),
     );
   }
 }
-
 class _ProfileUploadBox extends StatelessWidget {
   const _ProfileUploadBox({required this.image, required this.error, required this.onTap});
   final File? image;
@@ -1038,35 +934,34 @@ class _ProfileUploadBox extends StatelessWidget {
           Container(
             width: 110, height: 110,
             decoration: BoxDecoration(
-              shape: BoxShape.circle, color: _kOrangeSurf,
+              shape: BoxShape.circle, color: AppColors.orangeLight,
               border: Border.all(
-                color: error != null ? _kError : image != null ? _kOrange : _kOrangeBdr, width: 2),
+                color: error != null ? AppColors.danger : image != null ? AppColors.primaryOrange : AppColors.border, width: 2),
               image: image != null
                   ? DecorationImage(image: FileImage(image!), fit: BoxFit.cover) : null,
             ),
             child: image == null
-                ? Column(mainAxisAlignment: MainAxisAlignment.center, children: const [
-                    Icon(Icons.add_a_photo_outlined, size: 28, color: _kOrange),
+                ? const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.add_a_photo_outlined, size: 28, color: AppColors.primaryOrange),
                     SizedBox(height: 4),
-                    Text('Tap to add', style: TextStyle(fontSize: 10, color: _kOrange, fontWeight: FontWeight.w600)),
+                    Text('Tap to add', style: TextStyle(fontSize: 10, color: AppColors.primaryOrange, fontWeight: FontWeight.w600)),
                   ]) : null,
           ),
           Positioned(bottom: 0, right: 0,
             child: Container(
               padding: const EdgeInsets.all(6),
-              decoration: const BoxDecoration(color: _kOrange, shape: BoxShape.circle),
+              decoration: const BoxDecoration(color: AppColors.primaryOrange, shape: BoxShape.circle),
               child: Icon(image == null ? Icons.add : Icons.edit, size: 14, color: Colors.white),
             )),
         ]),
       ),
       if (error != null) Padding(
         padding: const EdgeInsets.only(top: 6),
-        child: Text(error!, style: const TextStyle(color: _kError, fontSize: 11.5)),
+        child: Text(error!, style: const TextStyle(color: AppColors.danger, fontSize: 11.5)),
       ),
     ]),
   );
 }
-
 class _DocUploadTile extends StatelessWidget {
   const _DocUploadTile({
     required this.label, required this.subtitle, required this.icon,
@@ -1078,7 +973,6 @@ class _DocUploadTile extends StatelessWidget {
   final bool required;
   final String? error;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     final uploaded = image != null;
@@ -1087,10 +981,10 @@ class _DocUploadTile extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         decoration: BoxDecoration(
-          color: uploaded ? _kOrangeSurf : _kCard,
+          color: uploaded ? AppColors.orangeLight : AppColors.card(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: error != null ? _kError : uploaded ? _kOrange : Colors.grey.shade200,
+            color: error != null ? AppColors.danger : uploaded ? AppColors.primaryOrange : Colors.grey.shade200,
             width: uploaded || error != null ? 1.5 : 1,
           ),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 3))],
@@ -1104,7 +998,7 @@ class _DocUploadTile extends StatelessWidget {
                   Positioned(top: 8, right: 8,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(color: _kOrange, borderRadius: BorderRadius.circular(20)),
+                      decoration: BoxDecoration(color: AppColors.primaryOrange, borderRadius: BorderRadius.circular(20)),
                       child: const Row(mainAxisSize: MainAxisSize.min, children: [
                         Icon(Icons.check_circle, size: 12, color: Colors.white),
                         SizedBox(width: 4),
@@ -1113,7 +1007,7 @@ class _DocUploadTile extends StatelessWidget {
                     )),
                   Positioned(bottom: 8, right: 8,
                     child: Container(padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(color: _kOrange, shape: BoxShape.circle),
+                      decoration: const BoxDecoration(color: AppColors.primaryOrange, shape: BoxShape.circle),
                       child: const Icon(Icons.edit, size: 14, color: Colors.white),
                     )),
                 ]))
@@ -1124,35 +1018,35 @@ class _DocUploadTile extends StatelessWidget {
                     Container(
                       width: 50, height: 50,
                       decoration: BoxDecoration(
-                        color: error != null ? _kError.withOpacity(0.08) : _kOrangeSurf,
+                        color: error != null ? AppColors.danger.withOpacity(0.08) : AppColors.orangeLight,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(icon, color: error != null ? _kError : _kOrange, size: 24),
+                      child: Icon(icon, color: error != null ? AppColors.danger : AppColors.primaryOrange, size: 24),
                     ),
                     const SizedBox(width: 14),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
-                        Text(label, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _kTextPri)),
+                        Text(label, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: AppColors.text(context))),
                         if (required) ...[
                           const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: _kOrange, borderRadius: BorderRadius.circular(4)),
+                            decoration: BoxDecoration(color: AppColors.primaryOrange, borderRadius: BorderRadius.circular(4)),
                             child: const Text('Required', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
                           ),
                         ],
                       ]),
                       const SizedBox(height: 3),
-                      Text(subtitle, style: const TextStyle(fontSize: 12, color: _kTextSec)),
+                      Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textMid)),
                     ])),
-                    Icon(Icons.upload_rounded, color: error != null ? _kError : _kOrange, size: 22),
+                    Icon(Icons.upload_rounded, color: error != null ? AppColors.danger : AppColors.primaryOrange, size: 22),
                   ]),
                   if (error != null) Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Row(children: [
-                      const Icon(Icons.error_outline, size: 13, color: _kError),
+                      const Icon(Icons.error_outline, size: 13, color: AppColors.danger),
                       const SizedBox(width: 4),
-                      Text(error!, style: const TextStyle(color: _kError, fontSize: 11.5)),
+                      Text(error!, style: const TextStyle(color: AppColors.danger, fontSize: 11.5)),
                     ]),
                   ),
                 ]),
@@ -1161,14 +1055,12 @@ class _DocUploadTile extends StatelessWidget {
     );
   }
 }
-
 class _ExpandableInfo extends StatefulWidget {
   const _ExpandableInfo({required this.title, required this.content});
   final String title, content;
   @override
   State<_ExpandableInfo> createState() => _ExpandableInfoState();
 }
-
 class _ExpandableInfoState extends State<_ExpandableInfo> {
   bool _expanded = false;
   @override
@@ -1176,24 +1068,24 @@ class _ExpandableInfoState extends State<_ExpandableInfo> {
     onTap: () => setState(() => _expanded = !_expanded),
     child: Container(
       decoration: BoxDecoration(
-        color: _kCard, borderRadius: BorderRadius.circular(12),
+        color: AppColors.card(context), borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(children: [
-            const Icon(Icons.help_outline, size: 17, color: _kTextSec),
+            const Icon(Icons.help_outline, size: 17, color: AppColors.textMid),
             const SizedBox(width: 10),
             Expanded(child: Text(widget.title,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kTextPri))),
-            Icon(_expanded ? Icons.expand_less : Icons.expand_more, size: 18, color: _kTextSec),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text(context)))),
+            const Icon(Icons.expand_more, size: 18, color: AppColors.textMid),
           ]),
         ),
         if (_expanded) Padding(
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
           child: Text(widget.content,
-              style: const TextStyle(fontSize: 12.5, color: _kTextSec, height: 1.5)),
+              style: const TextStyle(fontSize: 12.5, color: AppColors.textMid, height: 1.5)),
         ),
       ]),
     ),

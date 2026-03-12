@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../edit_apartment_screen.dart';
 import '../views_analytics_screen.dart';
+import 'package:staynear/core/app_colors.dart';
 
 class HostApartmentPreviewScreen extends StatelessWidget {
   final String propertyId;
@@ -10,13 +11,6 @@ class HostApartmentPreviewScreen extends StatelessWidget {
     super.key,
     required this.propertyId,
   });
-
-  static const _bg = Color(0xFFF8F7F5);
-  static const _orange = Color(0xFFFF8A00);
-  static const _textDark = Color(0xFF1A1A2E);
-  static const _textMid = Color(0xFF6B7280);
-  static const _border = Color(0xFFEEECE8);
-
   @override
   Widget build(BuildContext context) {
     final docStream = FirebaseFirestore.instance
@@ -25,7 +19,7 @@ class HostApartmentPreviewScreen extends StatelessWidget {
         .snapshots();
 
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: AppColors.background(context),
       body: StreamBuilder<DocumentSnapshot>(
         stream: docStream,
         builder: (context, snapshot) {
@@ -63,9 +57,10 @@ class HostApartmentPreviewScreen extends StatelessWidget {
                           top: 50,
                           left: 16,
                           child: _circleIcon(
-                            icon: Icons.arrow_back,
-                            onTap: () => Navigator.pop(context),
-                          ),
+  context: context,
+  icon: Icons.arrow_back,
+  onTap: () => Navigator.pop(context),
+),
                         ),
 
                         Positioned(
@@ -80,8 +75,8 @@ class HostApartmentPreviewScreen extends StatelessWidget {
                             ),
                             child: Text(
                               "1/${images.length}",
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 12),
+                              style: TextStyle(
+                                  color: AppColors.card(context), fontSize: 12),
                             ),
                           ),
                         ),
@@ -95,10 +90,10 @@ class HostApartmentPreviewScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Text(
                         data['name'] ?? "",
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
-                          color: _textDark,
+                          color: AppColors.text(context),
                         ),
                       ),
                     ),
@@ -109,9 +104,9 @@ class HostApartmentPreviewScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Text(
                         data['location'] ?? "",
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
-                          color: _textMid,
+                          color: AppColors.textMid,
                         ),
                       ),
                     ),
@@ -122,10 +117,10 @@ class HostApartmentPreviewScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Text(
                         "₱${data['price']} / month",
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
-                          color: _orange,
+                          color: AppColors.primaryOrange,
                         ),
                       ),
                     ),
@@ -155,7 +150,7 @@ class HostApartmentPreviewScreen extends StatelessWidget {
                             .map(
                               (e) => Chip(
                                 label: Text(e),
-                                backgroundColor: Colors.grey[200],
+                                backgroundColor: AppColors.card(context),
                               ),
                             )
                             .toList(),
@@ -182,9 +177,9 @@ class HostApartmentPreviewScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Text(
                         data['description'] ?? "",
-                        style: const TextStyle(
+                        style: TextStyle(
                           height: 1.6,
-                          color: _textMid,
+                          color: AppColors.textMid,
                         ),
                       ),
                     ),
@@ -202,10 +197,10 @@ class HostApartmentPreviewScreen extends StatelessWidget {
                 child: Container(
                   padding:
                       const EdgeInsets.fromLTRB(20, 16, 20, 30),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
+                  decoration: BoxDecoration(
+                    color: AppColors.card(context),
                     border: Border(
-                      top: BorderSide(color: _border),
+                      top: BorderSide(color: AppColors.border),
                     ),
                   ),
                   child: Row(
@@ -215,7 +210,7 @@ class HostApartmentPreviewScreen extends StatelessWidget {
                       Expanded(
                         child: OutlinedButton(
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: _border),
+                            side: const BorderSide(color: AppColors.border),
                             shape: RoundedRectangleBorder(
                               borderRadius:
                                   BorderRadius.circular(18),
@@ -233,10 +228,10 @@ class HostApartmentPreviewScreen extends StatelessWidget {
                               ),
                             );
                           },
-                          child: const Text(
+                          child: Text(
                             "Edit",
                             style: TextStyle(
-                                color: _textDark),
+                                color: AppColors.text(context)),
                           ),
                         ),
                       ),
@@ -247,7 +242,7 @@ class HostApartmentPreviewScreen extends StatelessWidget {
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _orange,
+                            backgroundColor: AppColors.primaryOrange,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius:
@@ -267,7 +262,7 @@ class HostApartmentPreviewScreen extends StatelessWidget {
                               ),
                             );
                           },
-                          child: const Text("Analytics"),
+                          child: Text("Analytics"),
                         ),
                       ),
                     ],
@@ -281,20 +276,26 @@ class HostApartmentPreviewScreen extends StatelessWidget {
     );
   }
 
-  Widget _circleIcon({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white,
-        ),
-        padding: const EdgeInsets.all(8),
-        child: Icon(icon, size: 18),
+Widget _circleIcon({
+  required BuildContext context,
+  required IconData icon,
+  required VoidCallback onTap,
+}) {
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.card(context),
+        border: Border.all(color: AppColors.border),
       ),
-    );
-  }
+      padding: const EdgeInsets.all(8),
+      child: Icon(
+        icon,
+        size: 18,
+        color: AppColors.text(context),
+      ),
+    ),
+  );
+}
 }

@@ -5,6 +5,7 @@ import 'all_apartments_screen.dart';
 import 'active_apartments_screen.dart';
 import 'add_apartment_screen.dart';
 import 'host_bottom_nav.dart';
+import 'package:staynear/core/app_colors.dart';
 
 class HostDashboardScreen extends StatelessWidget {
   const HostDashboardScreen({super.key});
@@ -18,7 +19,7 @@ class HostDashboardScreen extends StatelessWidget {
         .where('ownerId', isEqualTo: uid);
 
     return Scaffold(
-      backgroundColor: const Color(0xffF7F7F7),
+      backgroundColor: AppColors.background(context),
 
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot>(
@@ -51,7 +52,7 @@ class HostDashboardScreen extends StatelessWidget {
 
                   // ================= HEADER =================
 
-                  const Text(
+                  Text(
                     "Good morning, Admin!",
                     style: TextStyle(
                       fontSize: 24,
@@ -59,9 +60,9 @@ class HostDashboardScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     "Here’s your latest review",
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(color: AppColors.textMid),
                   ),
 
                   const SizedBox(height: 24),
@@ -76,7 +77,7 @@ class HostDashboardScreen extends StatelessWidget {
                     mainAxisSpacing: 14,
                     childAspectRatio: 1.1, // ✅ prevents overflow
                     children: [
-_statCard(
+_statCard(context,
   icon: Icons.apartment,
   color: Colors.blue,
   number: total.toString(),
@@ -91,11 +92,11 @@ _statCard(
   },
 ),
 
-_statCard(
+_statCard(context,
   icon: Icons.home,
   color: Colors.orange,
   number: active.toString(),
-  label: "Active Apartments",
+  label: "My Apartments",
   onTap: () {
     Navigator.push(
       context,
@@ -105,13 +106,13 @@ _statCard(
     );
   },
 ),
-                      _statCard(
+                      _statCard(context,
                         icon: Icons.remove_red_eye,
                         color: Colors.green,
                         number: viewsTotal.toString(),
                         label: "Views Total",
                       ),
-                      _statCard(
+                      _statCard(context,
                         icon: Icons.chat_bubble,
                         color: Colors.purple,
                         number: inquiriesTotal.toString(),
@@ -126,11 +127,11 @@ _statCard(
 
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const [
+                    children: [
                       Text(
                         "Recent Listings",
                         style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
+                            fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.text(context)),
                       ),
                       Icon(Icons.chevron_right),
                     ],
@@ -141,7 +142,7 @@ _statCard(
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.card(context),
                       borderRadius: BorderRadius.circular(18),
                       boxShadow: [
                         BoxShadow(
@@ -152,24 +153,27 @@ _statCard(
                       ],
                     ),
                     child: recent.isEmpty
-                        ? const Text(
+                        ? Text(
                             "No listings yet",
                             style: TextStyle(color: Colors.grey),
                           )
                         : Column(
-                            children: recent.map((doc) {
-                              return Column(
-                                children: [
-                                  _listingItem(
-                                    doc['name'],
-                                    doc['location'] ?? "No location",
-                                    (doc['isActive'] ?? false) ? "active" : "inactive",
-                                  ),
-                                  const SizedBox(height: 12),
-                                ],
-                              );
-                            }).toList(),
-                          ),
+    children: recent.map((doc) {
+
+      final data = doc.data() as Map<String, dynamic>;
+
+      return Column(
+        children: [
+          _listingItem(
+            data['name'] ?? "Unnamed",
+            data['address'] ?? "No location",
+            (data['isActive'] ?? false) ? "active" : "inactive",
+          ),
+          const SizedBox(height: 12),
+        ],
+      );
+    }).toList(),
+),
                   ),
 
                   const SizedBox(height: 30),
@@ -192,11 +196,11 @@ _statCard(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(30),
                         gradient: const LinearGradient(
-                          colors: [
-                            Color(0xffFF8A00),
-                            Color(0xffFF7043),
-                          ],
-                        ),
+  colors: [
+    AppColors.primaryOrange,
+    Color(0xffFF7043),
+  ],
+),
                       ),
                       child: const Center(
                         child: Text(
@@ -231,7 +235,7 @@ _statCard(
 
   // ================= STAT CARD =================
 
-Widget _statCard({
+Widget _statCard(BuildContext context, {
   required IconData icon,
   required Color color,
   required String number,
@@ -243,7 +247,7 @@ Widget _statCard({
     child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(

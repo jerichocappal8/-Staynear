@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'edit_apartment_screen.dart';
+import 'package:staynear/core/app_colors.dart';
 
 class AllApartmentsScreen extends StatelessWidget {
   const AllApartmentsScreen({super.key});
@@ -17,7 +18,7 @@ class AllApartmentsScreen extends StatelessWidget {
         .snapshots();
 
     return Scaffold(
-      backgroundColor: const Color(0xffF7F8FA),
+      backgroundColor: AppColors.background(context),
       body: SafeArea(
         child: Column(
           children: [
@@ -29,17 +30,21 @@ class AllApartmentsScreen extends StatelessWidget {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new),
+                    icon: Icon(
+  Icons.arrow_back_ios_new,
+  color: AppColors.text(context),
+),
                     onPressed: () => Navigator.pop(context),
                   ),
-                  const Expanded(
+                  Expanded(
                     child: Center(
                       child: Text(
                         "All Apartments",
                         style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                        ),
+  fontSize: 20,
+  fontWeight: FontWeight.w600,
+  color: AppColors.text(context),
+),
                       ),
                     ),
                   ),
@@ -101,7 +106,7 @@ class AllApartmentsScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 22),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(26),
         boxShadow: [
           BoxShadow(
@@ -129,7 +134,7 @@ class AllApartmentsScreen extends StatelessWidget {
               Container(
   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
   decoration: BoxDecoration(
-    color: const Color(0xffFF8A00).withOpacity(.10),
+    color: AppColors.orangeLight,
     borderRadius: BorderRadius.circular(30),
   ),
   child: Text(
@@ -137,7 +142,7 @@ class AllApartmentsScreen extends StatelessWidget {
         .toString()
         .toUpperCase(),
     style: const TextStyle(
-      color: Color(0xffFF8A00),
+      color: AppColors.primaryOrange,
       fontSize: 11,
       fontWeight: FontWeight.w600,
     ),
@@ -151,7 +156,7 @@ class AllApartmentsScreen extends StatelessWidget {
           Text(
             data['location'] ?? "",
             style: const TextStyle(
-              color: Colors.grey,
+              color: AppColors.textMid,
               fontSize: 14,
             ),
           ),
@@ -163,7 +168,7 @@ class AllApartmentsScreen extends StatelessWidget {
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: Color(0xffFF8A00),
+              color: AppColors.primaryOrange,
             ),
           ),
 
@@ -193,11 +198,11 @@ class AllApartmentsScreen extends StatelessWidget {
                         ),
                       );
                     },
-                    child: const Text(
+                    child: Text(
                       "Edit",
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: Colors.black87,
+                        color: AppColors.text(context),
                       ),
                     ),
                   ),
@@ -212,7 +217,7 @@ class AllApartmentsScreen extends StatelessWidget {
                   height: 48,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(30),
-                    color: const Color(0xffFF4D4F),
+                    color: AppColors.danger
                   ),
                   child: TextButton(
                     onPressed: () async {
@@ -271,7 +276,7 @@ class AllApartmentsScreen extends StatelessWidget {
                                                 Navigator.pop(
                                                     context,
                                                     true),
-                                            child: const Text(
+                                            child: Text(
                                               "Delete",
                                               style: TextStyle(
                                                   color:
@@ -296,7 +301,7 @@ class AllApartmentsScreen extends StatelessWidget {
                             .delete();
                       }
                     },
-                    child: const Text(
+                    child: Text(
                       "Delete",
                       style: TextStyle(
                         color: Colors.white,

@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import '../security/login_2fa_screen.dart';
 import '../../services/auth_service.dart';
 import '../home/main_shell.dart';
 import '../../admin/admin_dashboard.dart';
+import '../../services/biometric_service.dart';
+import '../../core/settings_prefs.dart';
+import '../../core/app_colors.dart';
+
+// ─── AppColors ───────────────────────────────────────────────────────────────
+
+// ─── AuthScreen ──────────────────────────────────────────────────────────────
 
 class AuthScreen extends StatefulWidget {
   final bool isLogin;
@@ -15,251 +23,385 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends State<AuthScreen>
+    with SingleTickerProviderStateMixin {
   final emailCtrl = TextEditingController();
-  final passCtrl = TextEditingController();
+  final passCtrl  = TextEditingController();
   final phoneCtrl = TextEditingController();
 
   final auth = AuthService();
 
   late bool isLogin;
-  bool loading = false;
+  bool loading       = false;
+  bool obscurePass   = true;
+
+  late final AnimationController _fadeCtrl;
+late Animation<double> _fadeAnim;
 
   @override
   void initState() {
     super.initState();
     isLogin = widget.isLogin;
+
+    _fadeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    _fadeCtrl.forward();
   }
 
   @override
+  void dispose() {
+    emailCtrl.dispose();
+    passCtrl.dispose();
+    phoneCtrl.dispose();
+    _fadeCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Switch between login / register with fade ──────────────────────────────
+  void _toggle() {
+    _fadeCtrl.reset();
+    setState(() => isLogin = !isLogin);
+    _fadeCtrl.forward();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  @override
   Widget build(BuildContext context) {
+    final bg       = AppColors.background(context);
+    final cardCol  = AppColors.card(context);
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              isLogin ? "Welcome Back!" : "Let’s explore together!",
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              isLogin
-                  ? "Log in to your StayNear account."
-                  : "Create your StayNear account.",
-              style: const TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 30),
+      backgroundColor: bg,
+      body: SafeArea(
+        child: FadeTransition(
+          opacity: _fadeAnim,
+          child: Column(
+            children: [
+              // ── Hero header ───────────────────────────────────────────────
+              _HeroHeader(isLogin: isLogin, isDark: isDark),
 
-            _inputField("Email", controller: emailCtrl),
-            _inputField("Password", isPassword: true, controller: passCtrl),
+              // ── Form card ─────────────────────────────────────────────────
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: cardCol,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(32),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
+                        blurRadius: 24,
+                        offset: const Offset(0, -4),
+                      ),
+                    ],
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Heading
+                        Text(
+                          isLogin ? 'Welcome back 👋' : "Let's get started 🚀",
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.text(context),
+                            letterSpacing: -0.5,
+                          ),
+                        ),
 
-            if (!isLogin)
-              _inputField("Phone number", controller: phoneCtrl),
+                        const SizedBox(height: 4),
 
-            const SizedBox(height: 20),
+                        Text(
+                          isLogin
+                              ? 'Log in to your StayNear account.'
+                              : 'Create your free StayNear account.',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textMid,
+                          ),
+                        ),
 
-            _mainButton(
-              loading
-                  ? "Please wait..."
-                  : isLogin
-                      ? "Log in"
-                      : "Create Account",
-            ),
+                        const SizedBox(height: 28),
 
-            if (isLogin)
-              TextButton(
-                onPressed: _resetPassword,
-                child: const Text("Forgot password?"),
-              ),
+                        // ── Fields ──────────────────────────────────────────
+                        _AuthField(
+                          hint:       'Email address',
+                          controller: emailCtrl,
+                          icon:       Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                        ),
 
-            const SizedBox(height: 10),
+                        const SizedBox(height: 14),
 
-            Row(
-              children: const [
-                Expanded(child: Divider()),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Text("OR"),
+                        _PasswordField(
+                          controller: passCtrl,
+                          obscure:    obscurePass,
+                          onToggle: () =>
+                              setState(() => obscurePass = !obscurePass),
+                        ),
+
+                        if (!isLogin) ...[
+                          const SizedBox(height: 14),
+                          _AuthField(
+                            hint:        'Phone number',
+                            controller:  phoneCtrl,
+                            icon:        Icons.phone_outlined,
+                            keyboardType: TextInputType.phone,
+                          ),
+                        ],
+
+                        if (isLogin) ...[
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: GestureDetector(
+                              onTap: _resetPassword,
+                              child: const Text(
+                                'Forgot password?',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.primaryOrange,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 28),
+
+                        // ── Primary button ──────────────────────────────────
+                        _PrimaryButton(
+                          loading: loading,
+                          label:   isLogin ? 'Log in' : 'Create Account',
+                          onTap:   loading ? null : _handleAuth,
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // ── Divider ─────────────────────────────────────────
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Divider(
+                                color: isDark
+                                    ? AppColors.darkCardSoft
+                                    : AppColors.border,
+                              ),
+                            ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              child: Text(
+                                'OR',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textLight,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Divider(
+                                color: isDark
+                                    ? AppColors.darkCardSoft
+                                    : AppColors.border,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // ── Google button ───────────────────────────────────
+                        _GoogleButton(
+                          loading: loading,
+                          onTap:   loading ? null : _handleGoogleLogin,
+                          isDark:  isDark,
+                        ),
+
+                        const SizedBox(height: 28),
+
+                        // ── Toggle ──────────────────────────────────────────
+                        Center(
+                          child: GestureDetector(
+                            onTap: loading ? null : _toggle,
+                            child: RichText(
+                              text: TextSpan(
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textMid,
+                                ),
+                                children: [
+                                  TextSpan(
+                                    text: isLogin
+                                        ? "Don't have an account? "
+                                        : 'Already have an account? ',
+                                  ),
+                                  TextSpan(
+                                    text: isLogin ? 'Sign up' : 'Log in',
+                                    style: const TextStyle(
+                                      color: AppColors.primaryOrange,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                Expanded(child: Divider()),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            _googleButton(),
-
-            const SizedBox(height: 20),
-
-            Center(
-              child: TextButton(
-                onPressed: () {
-                  setState(() => isLogin = !isLogin);
-                },
-                child: Text(
-                  isLogin
-                      ? "Create new account"
-                      : "Already have an account?",
-                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ======================
-  // EMAIL AUTH HANDLER
-  // ======================
-Future<void> _handleAuth() async {
-  try {
-    setState(() => loading = true);
+  /*
+  =========================
+  EMAIL LOGIN / REGISTER
+  =========================
+  */
 
-    if (isLogin) {
+  Future<void> _handleAuth() async {
+    try {
+      if (!mounted) return;
+      setState(() => loading = true);
 
-      final user = await auth.login(
-        emailCtrl.text.trim(),
-        passCtrl.text.trim(),
-      );
+      if (isLogin) {
+        bool biometricEnabled = SettingsPrefs.getBool(
+          SettingsPrefs.kSecurityBiometric,
+          defaultValue: true,
+        );
 
-      if (user != null) {
+        if (biometricEnabled) {
+          bool authenticated = await BiometricService.authenticate();
 
-        final uid = FirebaseAuth.instance.currentUser!.uid;
+          if (!authenticated) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Biometric authentication failed'),
+                backgroundColor: AppColors.danger,
+              ),
+            );
+            setState(() => loading = false);
+            return;
+          }
+        }
 
-final doc = await FirebaseFirestore.instance
-    .collection('users')
-    .doc(uid)
-    .get();
+        final loginUser = await auth.login(
+          emailCtrl.text.trim(),
+          passCtrl.text.trim(),
+        );
 
-bool twoFAEnabled = doc.data()?['twoFAEnabled'] ?? false;
-String? secret = doc.data()?['twoFASecret'];
+        if (loginUser != null) {
+          await _check2FA();
+        }
+      } else {
+        final registerUser = await auth.register(
+          emailCtrl.text.trim(),
+          passCtrl.text.trim(),
+          phoneCtrl.text.trim(),
+        );
 
-if (twoFAEnabled && secret != null) {
-
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(
-      builder: (_) => Login2FAScreen(secret: secret),
-    ),
-  );
-
-  return;
-}
-
-        await _goHome();
+        if (registerUser != null) {
+          await _goHome();
+        }
       }
-
-    } else {
-
-      final user = await auth.register(
-        emailCtrl.text.trim(),
-        passCtrl.text.trim(),
-        phoneCtrl.text.trim(),
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
       );
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
 
-      if (user != null) {
-        await _goHome();
-      }
+  /*
+  =========================
+  CHECK 2FA
+  =========================
+  */
 
+  Future<void> _check2FA() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    final uid = currentUser.uid;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+
+    final data    = doc.data();
+    bool enabled  = data?['twoFAEnabled'] ?? false;
+    String? secret = data?['twoFASecret'];
+
+    if (enabled && secret != null) {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => Login2FAScreen(secret: secret)),
+      );
+      return;
     }
 
-  } catch (e) {
-
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(e.toString())));
-
-  } finally {
-
-    setState(() => loading = false);
-
+    await _goHome();
   }
-}
 
-// ======================
-// GOOGLE SIGN IN
-// ======================
-Widget _googleButton() {
-  return GestureDetector(
-    onTap: loading
-        ? null
-        : () async {
-            try {
-              setState(() => loading = true);
+  /*
+  =========================
+  GOOGLE SIGN IN
+  =========================
+  */
 
-              final user = await auth.signInWithGoogle();
+  Future<void> _handleGoogleLogin() async {
+    try {
+      if (!mounted) return;
+      setState(() => loading = true);
 
-              if (user != null) {
+      final googleUser = await auth.signInWithGoogle();
 
-                final uid = FirebaseAuth.instance.currentUser!.uid;
+      if (googleUser != null) {
+        await _check2FA();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
 
-                final doc = await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(uid)
-                    .get();
+  /*
+  =========================
+  ROLE BASED ROUTING
+  =========================
+  */
 
-                bool twoFAEnabled = doc.data()?['twoFAEnabled'] ?? false;
-                String? secret = doc.data()?['twoFASecret'];
-
-                if (twoFAEnabled && secret != null) {
-
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => Login2FAScreen(secret: secret),
-                    ),
-                  );
-
-                  return;
-                }
-
-                await _goHome();
-              }
-            } catch (e) {
-
-              ScaffoldMessenger.of(context)
-                  .showSnackBar(SnackBar(content: Text(e.toString())));
-
-            } finally {
-
-              setState(() => loading = false);
-
-            }
-          },
-    child: Container(
-      height: 55,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          Icon(Icons.g_mobiledata, size: 32),
-          SizedBox(width: 8),
-          Text("Sign in with Google"),
-        ],
-      ),
-    ),
-  );
-}
-  // ======================
-  // ROLE BASED ROUTING
-  // ======================
   Future<void> _goHome() async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    final uid = currentUser.uid;
 
     final userDoc = await FirebaseFirestore.instance
         .collection('users')
@@ -271,91 +413,441 @@ Widget _googleButton() {
     if (!mounted) return;
 
     if (role == 'admin') {
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const AdminDashboard()),
+        (route) => false,
       );
     } else {
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const MainShell()),
+        (route) => false,
       );
     }
   }
 
-  // ======================
-  // RESET PASSWORD
-  // ======================
+  /*
+  =========================
+  RESET PASSWORD
+  =========================
+  */
+
   Future<void> _resetPassword() async {
     if (emailCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Enter your email first")),
+        const SnackBar(content: Text('Enter your email first')),
       );
       return;
     }
 
     try {
       await auth.resetPassword(emailCtrl.text.trim());
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Password reset link sent to your email"),
-        ),
+            content: Text('Password reset link sent to your email')),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
     }
   }
+}
 
-  // ======================
-  // INPUT FIELD
-  // ======================
-  Widget _inputField(
-    String hint, {
-    bool isPassword = false,
-    required TextEditingController controller,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: TextField(
-        controller: controller,
-        obscureText: isPassword,
-        decoration: InputDecoration(
-          hintText: hint,
-          filled: true,
-          fillColor: Colors.grey[100],
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(30),
-            borderSide: BorderSide.none,
+// ─── Hero header widget ───────────────────────────────────────────────────────
+
+class _HeroHeader extends StatelessWidget {
+  final bool isLogin;
+  final bool isDark;
+
+  const _HeroHeader({required this.isLogin, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [AppColors.darkBackground, AppColors.darkCard]
+              : [AppColors.primaryOrange, const Color(0xFFFFB347)],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Back / brand row
+          Row(
+            children: [
+              if (Navigator.canPop(context))
+                GestureDetector(
+                  onTap: () => Navigator.maybePop(context),
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              const Spacer(),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: const [
+                    Icon(Icons.location_on_rounded,
+                        color: Colors.white, size: 14),
+                    SizedBox(width: 4),
+                    Text(
+                      'StayNear',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Emoji + title
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Center(
+              child: Text(
+                isLogin ? '🔑' : '🏡',
+                style: const TextStyle(fontSize: 26),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          Text(
+            isLogin ? 'Sign in' : 'Create account',
+            style: const TextStyle(
+              fontSize: 30,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: -0.5,
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          Text(
+            isLogin
+                ? 'Find your perfect stay anywhere.'
+                : 'Explore unique stays around the world.',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.white.withOpacity(0.85),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Auth text field ──────────────────────────────────────────────────────────
+
+class _AuthField extends StatelessWidget {
+  final String hint;
+  final TextEditingController controller;
+  final IconData icon;
+  final TextInputType keyboardType;
+
+  const _AuthField({
+    required this.hint,
+    required this.controller,
+    required this.icon,
+    this.keyboardType = TextInputType.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return TextField(
+      controller:   controller,
+      keyboardType: keyboardType,
+      style: TextStyle(
+        color:    AppColors.text(context),
+        fontSize: 15,
+      ),
+      decoration: InputDecoration(
+        hintText:  hint,
+        hintStyle: const TextStyle(color: AppColors.textLight, fontSize: 14),
+
+        prefixIcon: Icon(icon, size: 20, color: AppColors.textMid),
+
+        filled:    true,
+        fillColor: isDark
+            ? AppColors.darkCardSoft.withOpacity(0.5)
+            : AppColors.bgLight,
+
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: isDark ? AppColors.darkCardSoft : AppColors.border,
+            width: 1.5,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(
+            color: AppColors.primaryOrange,
+            width: 1.8,
           ),
         ),
       ),
     );
   }
+}
 
-  // ======================
-  // MAIN BUTTON
-  // ======================
-  Widget _mainButton(String text) {
-    return GestureDetector(
-      onTap: loading ? null : _handleAuth,
-      child: Container(
-        height: 55,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          gradient: const LinearGradient(
-            colors: [Color(0xffFF8A00), Color(0xffFFB347)],
+// ─── Password field ───────────────────────────────────────────────────────────
+
+class _PasswordField extends StatelessWidget {
+  final TextEditingController controller;
+  final bool obscure;
+  final VoidCallback onToggle;
+
+  const _PasswordField({
+    required this.controller,
+    required this.obscure,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return TextField(
+      controller:  controller,
+      obscureText: obscure,
+      style: TextStyle(
+        color:    AppColors.text(context),
+        fontSize: 15,
+      ),
+      decoration: InputDecoration(
+        hintText:  'Password',
+        hintStyle: const TextStyle(color: AppColors.textLight, fontSize: 14),
+
+        prefixIcon: const Icon(
+          Icons.lock_outline_rounded,
+          size: 20,
+          color: AppColors.textMid,
+        ),
+
+        suffixIcon: IconButton(
+          onPressed: onToggle,
+          icon: Icon(
+            obscure
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+            size: 20,
+            color: AppColors.textMid,
           ),
         ),
-        child: Center(
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+
+        filled:    true,
+        fillColor: isDark
+            ? AppColors.darkCardSoft.withOpacity(0.5)
+            : AppColors.bgLight,
+
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: isDark ? AppColors.darkCardSoft : AppColors.border,
+            width: 1.5,
           ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(
+            color: AppColors.primaryOrange,
+            width: 1.8,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Primary button ───────────────────────────────────────────────────────────
+
+class _PrimaryButton extends StatelessWidget {
+  final bool loading;
+  final String label;
+  final VoidCallback? onTap;
+
+  const _PrimaryButton({
+    required this.loading,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 56,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: loading
+              ? const LinearGradient(
+                  colors: [Color(0xFFDBAA5C), Color(0xFFDBAA5C)],
+                )
+              : const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end:   Alignment.bottomRight,
+                  colors: [
+                    AppColors.primaryOrange,
+                    Color(0xFFFFB347),
+                  ],
+                ),
+          boxShadow: loading
+              ? []
+              : [
+                  BoxShadow(
+                    color: AppColors.primaryOrange.withOpacity(0.38),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+        ),
+        child: Center(
+          child: loading
+              ? const SizedBox(
+                  height: 22,
+                  width:  22,
+                  child:  CircularProgressIndicator(
+                    color:       Colors.white,
+                    strokeWidth: 2.4,
+                  ),
+                )
+              : Text(
+                  label,
+                  style: const TextStyle(
+                    color:       Colors.white,
+                    fontSize:    16,
+                    fontWeight:  FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Google button ────────────────────────────────────────────────────────────
+
+class _GoogleButton extends StatelessWidget {
+  final bool loading;
+  final VoidCallback? onTap;
+  final bool isDark;
+
+  const _GoogleButton({
+    required this.loading,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 56,
+        width:  double.infinity,
+        decoration: BoxDecoration(
+          color:         isDark ? AppColors.darkCardSoft : Colors.white,
+          borderRadius:  BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? AppColors.darkCard : AppColors.border,
+            width: 1.5,
+          ),
+          boxShadow: isDark
+              ? []
+              : [
+                  BoxShadow(
+                    color:      Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset:     const Offset(0, 2),
+                  ),
+                ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Google "G" logo via coloured icon (no external assets needed)
+            Container(
+              width:  28,
+              height: 28,
+              decoration: BoxDecoration(
+                color:        AppColors.orangeLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child: Text(
+                  'G',
+                  style: TextStyle(
+                    color:      AppColors.primaryOrange,
+                    fontSize:   16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Continue with Google',
+              style: TextStyle(
+                fontSize:    15,
+                fontWeight:  FontWeight.w600,
+                color:       AppColors.text(context),
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
         ),
       ),
     );

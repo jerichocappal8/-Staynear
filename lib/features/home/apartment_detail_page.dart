@@ -3,201 +3,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/app_colors.dart';
+import '../booking/checkout_screen.dart';
+import '../../models/apartment_model.dart';
+import '../../models/room_offer.dart';
+import '../../models/rental_terms.dart';
+import '../../models/nearby_facility.dart';
+import '../../models/testimonial.dart';
+
 // ══════════════════════════════════════════════════════════════════════════════
 //  CONSTANTS
 // ══════════════════════════════════════════════════════════════════════════════
-
-const _primaryOrange = Color(0xFFF5A623);
-const _orangeLight   = Color(0xFFFFF3E0);
-const _textDark      = Color(0xFF1A1A2E);
-const _textMid       = Color(0xFF6B7280);
-const _textLight     = Color(0xFF9CA3AF);
-const _bgLight       = Color(0xFFF8F7F5);
-const _borderColor   = Color(0xFFEEECE8);
-const _successGreen  = Color(0xFF34C759);
-const _errorRed      = Color(0xFFFF3B30);
-
+const Color _successGreen = Color(0xFF22C55E);
+const Color _errorRed = Color(0xFFEF4444);
 // ══════════════════════════════════════════════════════════════════════════════
 //  MODELS
 // ══════════════════════════════════════════════════════════════════════════════
-
-/// Rental terms embedded inside the property document under `rentalTerms`.
-class RentalTerms {
-  final int minimumStayMonths;
-  final double securityDepositAmount;
-  final int advanceMonthsRequired;
-
-  const RentalTerms({
-    required this.minimumStayMonths,
-    required this.securityDepositAmount,
-    required this.advanceMonthsRequired,
-  });
-
-  factory RentalTerms.fromMap(Map<String, dynamic> m) => RentalTerms(
-        minimumStayMonths:     (m['minimumStayMonths']     ?? 1) as int,
-        securityDepositAmount: (m['securityDepositAmount'] ?? 0 as num).toDouble(),
-        advanceMonthsRequired: (m['advanceMonthsRequired'] ?? 1) as int,
-      );
-
-  static RentalTerms empty() => const RentalTerms(
-        minimumStayMonths: 1, securityDepositAmount: 0, advanceMonthsRequired: 1);
-}
-
-/// A single room from the `rooms` subcollection.
-class RoomOfferData {
-  final String id;
-  final String roomType;
-  final double priceMonthly;
-  final int availableUnits;
-  final int maxOccupants;
-  final String genderRestriction; // 'Any' | 'Male' | 'Female'
-  final bool isAvailable;
-
-  const RoomOfferData({
-    required this.id,
-    required this.roomType,
-    required this.priceMonthly,
-    required this.availableUnits,
-    required this.maxOccupants,
-    required this.genderRestriction,
-    required this.isAvailable,
-  });
-
-  factory RoomOfferData.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
-    return RoomOfferData(
-      id:                doc.id,
-      roomType:          d['roomType']          ?? '',
-      priceMonthly:      (d['priceMonthly']     ?? 0 as num).toDouble(),
-      availableUnits:    (d['availableUnits']   ?? 0) as int,
-      maxOccupants:      (d['maxOccupants']     ?? 1) as int,
-      genderRestriction: d['genderRestriction'] ?? 'Any',
-      isAvailable:       d['isAvailable']       ?? false,
-    );
-  }
-}
-
-/// Main property model — updated to new Firestore schema.
-/// Old fields removed: `price`, `rooms` (count), `area`, `ownerName`, `ownerPhotoUrl`.
-/// New fields added: `coverImageUrl`, `houseRules`, `minPrice`, `category`, `rentalTerms`, `isActive`.
-class ApartmentModel {
-  final String id;
-  final String name;
-  final String ownerId;
-  final double rating;
-  final int reviewCount;
-  final String address;
-  final List<String> images;       // gallery — coverImageUrl prepended first
-  final String coverImageUrl;
-  final List<String> facilities;
-  final List<String> houseRules;
-  final double minPrice;
-  final double lat;
-  final double lng;
-  final String description;
-  final String category;
-  final RentalTerms rentalTerms;
-  final bool isActive;
-  final List<NearbyFacility> nearbyFacilities;
-  final List<Testimonial> testimonials;
-
-  const ApartmentModel({
-    required this.id,
-    required this.name,
-    required this.ownerId,
-    required this.rating,
-    required this.reviewCount,
-    required this.address,
-    required this.images,
-    required this.coverImageUrl,
-    required this.facilities,
-    required this.houseRules,
-    required this.minPrice,
-    required this.lat,
-    required this.lng,
-    required this.description,
-    required this.category,
-    required this.rentalTerms,
-    required this.isActive,
-    required this.nearbyFacilities,
-    required this.testimonials,
-  });
-
-  factory ApartmentModel.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
-    final GeoPoint? geo = d['coordinates'];
-
-    // coverImageUrl goes first in gallery; remaining images deduped after it
-    final String cover     = d['coverImageUrl'] ?? '';
-    final List<String> all = List<String>.from(d['imageUrls'] ?? d['images'] ?? []);
-    final List<String> gallery = [
-      if (cover.isNotEmpty) cover,
-      ...all.where((u) => u != cover),
-    ];
-
-    return ApartmentModel(
-      id:           doc.id,
-      name:         d['name']      ?? '',
-      ownerId:      d['ownerId']   ?? '',
-      rating:       (d['rating'] is num) ? (d['rating'] as num).toDouble() : 0,
-      reviewCount:  (d['reviewCount'] ?? 0) as int,
-      address:      d['location']  ?? d['city'] ?? '',
-      images:       gallery,
-      coverImageUrl: cover,
-      facilities:   List<String>.from(d['amenities']  ?? []),
-      houseRules:   List<String>.from(d['houseRules'] ?? []),
-      minPrice:     (d['minPrice'] ?? 0 as num).toDouble(),
-      lat:          geo?.latitude  ?? 0,
-      lng:          geo?.longitude ?? 0,
-      description:  d['description'] ?? '',
-      category:     d['category']    ?? '',
-      rentalTerms:  d['rentalTerms'] is Map
-          ? RentalTerms.fromMap(Map<String, dynamic>.from(d['rentalTerms']))
-          : RentalTerms.empty(),
-      isActive:     d['isActive'] ?? true,
-      nearbyFacilities: [],
-      testimonials: [],
-    );
-  }
-}
-
-// ── Supporting models (unchanged) ─────────────────────────────────────────────
-
-class NearbyFacility {
-  final String name;
-  final String distance;
-  final IconData icon;
-  const NearbyFacility({required this.name, required this.distance, required this.icon});
-
-  factory NearbyFacility.fromMap(Map<String, dynamic> map) {
-    const iconMap = {
-      'minimarket': Icons.store,
-      'hospital':   Icons.local_hospital,
-      'canteen':    Icons.restaurant,
-      'school':     Icons.school,
-    };
-    return NearbyFacility(
-      name: map['name'] ?? '', distance: map['distance'] ?? '',
-      icon: iconMap[map['iconKey']] ?? Icons.place);
-  }
-}
-
-class Testimonial {
-  final String name;
-  final double rating;
-  final String comment;
-  final String photoUrl;
-  const Testimonial(
-      {required this.name, required this.rating, required this.comment, required this.photoUrl});
-
-  factory Testimonial.fromMap(Map<String, dynamic> map) => Testimonial(
-        name:     map['name']     ?? '',
-        rating:   (map['rating'] ?? 0).toDouble(),
-        comment:  map['comment']  ?? '',
-        photoUrl: map['photoUrl'] ?? '',
-      );
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 //  PAGE
 // ══════════════════════════════════════════════════════════════════════════════
@@ -273,33 +94,41 @@ Future<void> _callHost() async {
       .toStringAsFixed(0)
       .replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},');
 
-  void _showRoomSelectionSheet(
-      BuildContext context, ApartmentModel apt, List<RoomOfferData> rooms) {
-    final available = rooms.where((r) => r.isAvailable && r.availableUnits > 0).toList();
-    showModalBottomSheet(
-      context:          context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _RoomSelectionSheet(
-        apt:   apt,
-        rooms: available,
-        onConfirm: (room) {
-          Navigator.pop(context);
-          // ── Booking hook ──────────────────────────────────────────────────
-          // Navigator.push(context, MaterialPageRoute(builder: (_) =>
-          //   BookingScreen(propertyId: apt.id, roomId: room.id,
-          //                 roomType: room.roomType, price: room.priceMonthly)));
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('"${room.roomType}" selected — booking flow coming soon'),
-            backgroundColor: _primaryOrange,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            margin: const EdgeInsets.all(16),
-          ));
-        },
-      ),
-    );
-  }
+void _showRoomSelectionSheet(
+  BuildContext context,
+  ApartmentModel apt,
+  List<RoomOffer> rooms,
+) {
+  final available =
+      rooms.where((r) =>
+  r.isAvailable && (int.tryParse(r.availableUnits) ?? 0) > 0
+).toList();
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _RoomSelectionSheet(
+      apt: apt,
+      rooms: available,
+      onConfirm: (room) {
+        // close the modal sheet first
+        Navigator.pop(context);
+
+        // open checkout screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CheckoutScreen(
+              apartment: apt,
+              room: room,
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
 
   // ══════════════════════════════════════════════════════════════════════════
   //  BUILD
@@ -313,7 +142,7 @@ Future<void> _callHost() async {
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-              body: Center(child: CircularProgressIndicator(color: _primaryOrange)));
+              body: Center(child: CircularProgressIndicator(color: AppColors.primaryOrange)));
         }
         if (snap.hasError || !snap.hasData || !snap.data!.exists) {
           return const Scaffold(body: Center(child: Text('Property not found.')));
@@ -331,16 +160,17 @@ Future<void> _callHost() async {
               .collection('properties')
               .doc(widget.apartmentId)
               .collection('rooms')
-              .orderBy('priceMonthly')
               .snapshots(),
           builder: (context, roomSnap) {
             final rooms = roomSnap.hasData
-                ? roomSnap.data!.docs.map(RoomOfferData.fromFirestore).toList()
-                : <RoomOfferData>[];
+    ? roomSnap.data!.docs.map((doc) =>
+        RoomOffer.fromFirestore(doc.id, doc.data() as Map<String, dynamic>)
+      ).toList()
+    : <RoomOffer>[];
             final roomsLoading = !roomSnap.hasData;
 
             return Scaffold(
-              backgroundColor: Colors.white,
+              backgroundColor: AppColors.background(context),
               bottomNavigationBar: _BottomBar(
                 apt:    apt,
                 rooms:  rooms,
@@ -364,7 +194,7 @@ Future<void> _callHost() async {
                         // ── View Photos ────────────────────────────────
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: _ViewPhotosButton(primaryOrange: _primaryOrange,images: apt.images,),
+                          child: _ViewPhotosButton(primaryOrange: AppColors.primaryOrange,images: apt.images,),
                         ),
 
                         // ── Title + category + favourite ───────────────
@@ -378,7 +208,7 @@ Future<void> _callHost() async {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(apt.name,
-                                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                                     if (apt.category.isNotEmpty) ...[
                                       const SizedBox(height: 4),
                                       _CategoryBadge(label: apt.category),
@@ -403,10 +233,10 @@ Future<void> _callHost() async {
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Row(children: [
-                            const Icon(Icons.star, color: _primaryOrange, size: 16),
+                            Icon(Icons.star, color: AppColors.primaryOrange, size: 16),
                             const SizedBox(width: 4),
                             Text('${apt.rating} (${apt.reviewCount} reviews)',
-                                style: const TextStyle(fontSize: 13)),
+                                style: TextStyle(fontSize: 13)),
                           ]),
                         ),
 
@@ -416,10 +246,10 @@ Future<void> _callHost() async {
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Row(children: [
-                            const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
+                            Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
                             const SizedBox(width: 4),
                             Expanded(child: Text(apt.address,
-                                style: const TextStyle(fontSize: 12, color: Colors.grey))),
+                                style: TextStyle(fontSize: 12, color: Colors.grey))),
                           ]),
                         ),
 
@@ -433,7 +263,7 @@ Future<void> _callHost() async {
                           child: _OwnerRow(apt: apt, name: hostName, photo: hostPhoto, onCall: _callHost, onChat: () {
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                               content: Text('Chat feature coming soon!'),
-                              backgroundColor: _primaryOrange,
+                              backgroundColor: AppColors.primaryOrange,
                               behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               margin: const EdgeInsets.all(16),
@@ -466,7 +296,7 @@ Future<void> _callHost() async {
 
                         // ── Facilities ─────────────────────────────────
                         _FacilitiesSection(
-                            facilities: apt.facilities, primaryOrange: _primaryOrange),
+                            facilities: apt.facilities, primaryOrange: AppColors.primaryOrange),
 
                         const SizedBox(height: 16),
 
@@ -526,7 +356,7 @@ Future<void> _callHost() async {
 // ══════════════════════════════════════════════════════════════════════════════
 
 class _RoomsSection extends StatelessWidget {
-  final List<RoomOfferData> rooms;
+  final List<RoomOffer> rooms;
   final bool isLoading;
   final String Function(double) fmt;
 
@@ -549,10 +379,10 @@ class _RoomsSection extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                      color: _orangeLight, borderRadius: BorderRadius.circular(20)),
+                      color: AppColors.orangeLight, borderRadius: BorderRadius.circular(20)),
                   child: Text('${rooms.length} type${rooms.length == 1 ? '' : 's'}',
-                      style: const TextStyle(
-                          fontSize: 12, color: _primaryOrange, fontWeight: FontWeight.w600)),
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.primaryOrange, fontWeight: FontWeight.w600)),
                 ),
             ],
           ),
@@ -563,7 +393,7 @@ class _RoomsSection extends StatelessWidget {
             const Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
-                child: CircularProgressIndicator(color: _primaryOrange, strokeWidth: 2),
+                child: CircularProgressIndicator(color: AppColors.primaryOrange, strokeWidth: 2),
               ),
             )
           else if (rooms.isEmpty)
@@ -582,24 +412,24 @@ class _EmptyRoomsState extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 28),
         decoration: BoxDecoration(
-          color: _bgLight,
+          color: AppColors.background(context),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _borderColor),
+          border: Border.all(color: AppColors.border),
         ),
         child: Column(children: const [
-          Icon(Icons.meeting_room_outlined, size: 36, color: _textLight),
+          Icon(Icons.meeting_room_outlined, size: 36, color: AppColors.textLight),
           SizedBox(height: 8),
           Text('No rooms listed yet',
-              style: TextStyle(color: _textMid, fontWeight: FontWeight.w500)),
+              style: TextStyle(color: AppColors.textMid, fontWeight: FontWeight.w500)),
           SizedBox(height: 4),
           Text('Check back later or contact the host',
-              style: TextStyle(color: _textLight, fontSize: 12)),
+              style: TextStyle(color: AppColors.textLight, fontSize: 12)),
         ]),
       );
 }
 
 class _RoomTile extends StatelessWidget {
-  final RoomOfferData room;
+  final RoomOffer room;
   final String Function(double) fmt;
   const _RoomTile({required this.room, required this.fmt});
 
@@ -613,7 +443,7 @@ class _RoomTile extends StatelessWidget {
   static const _genderColors = {
     'Male':   Color(0xFF3B82F6),
     'Female': Color(0xFFEC4899),
-    'Any':    _textMid,
+    'Any':    AppColors.textMid,
   };
   static const _genderIcons = {
     'Male':   Icons.male_rounded,
@@ -623,18 +453,19 @@ class _RoomTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final available   = room.isAvailable && room.availableUnits > 0;
+    final available =
+    room.isAvailable && (int.tryParse(room.availableUnits) ?? 0) > 0;
     final icon        = _typeIcons[room.roomType]    ?? Icons.meeting_room_outlined;
-    final gColor      = _genderColors[room.genderRestriction] ?? _textMid;
+    final gColor      = _genderColors[room.genderRestriction] ?? AppColors.textMid;
     final gIcon       = _genderIcons[room.genderRestriction]  ?? Icons.people_outline_rounded;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _borderColor),
+        border: Border.all(color: AppColors.border),
         boxShadow: [BoxShadow(
             color: Colors.black.withOpacity(.04), blurRadius: 14, offset: const Offset(0, 4))],
       ),
@@ -645,10 +476,10 @@ class _RoomTile extends StatelessWidget {
           Container(
             width: 48, height: 48,
             decoration: BoxDecoration(
-              color: available ? _orangeLight : _bgLight,
+              color: available ? AppColors.orangeLight : AppColors.background(context),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: available ? _primaryOrange : _textLight, size: 22),
+            child: Icon(icon, color: available ? AppColors.primaryOrange : AppColors.textLight, size: 22),
           ),
 
           const SizedBox(width: 12),
@@ -658,19 +489,32 @@ class _RoomTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  Text(room.roomType,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 15, color: _textDark)),
-                  const SizedBox(width: 8),
-                  _AvailabilityBadge(available: available, units: room.availableUnits),
-                ]),
+                Row(
+  children: [
+    Expanded(
+      child: Text(
+        room.roomType,
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 15,
+          color: AppColors.text(context),
+        ),
+        overflow: TextOverflow.ellipsis,
+      ),
+    ),
+    const SizedBox(width: 8),
+    _AvailabilityBadge(
+      available: available,
+      units: int.tryParse(room.availableUnits) ?? 0,
+    ),
+  ],
+),
                 const SizedBox(height: 6),
                 Wrap(spacing: 6, runSpacing: 4, children: [
                   _MetaChip(
                       icon: Icons.people_outline_rounded,
                       label: 'Max ${room.maxOccupants} pax',
-                      color: _textMid),
+                      color: AppColors.textMid),
                   _MetaChip(icon: gIcon, label: room.genderRestriction, color: gColor),
                 ]),
               ],
@@ -679,56 +523,116 @@ class _RoomTile extends StatelessWidget {
 
           const SizedBox(width: 8),
 
-          // Price
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('₱${fmt(room.priceMonthly)}',
-                  style: const TextStyle(
-                      color: _primaryOrange, fontSize: 16,
-                      fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-              const Text('/month', style: TextStyle(fontSize: 11, color: _textLight)),
-            ],
+// Price + Fees
+Column(
+  crossAxisAlignment: CrossAxisAlignment.end,
+  mainAxisSize: MainAxisSize.min,
+  children: [
+
+    // Price
+    Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '₱${fmt(room.activePrice)}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+            color: AppColors.primaryOrange,
+          ),
+        ),
+        const SizedBox(width: 2),
+        Text(
+          room.pricingMode == 'daily' ? '/day' : '/mo',
+          style: const TextStyle(
+            fontSize: 11,
+            color: AppColors.textMid,
+          ),
+        ),
+      ],
+    ),
+
+    // Service Fee
+    if ((double.tryParse(room.serviceFee) ?? 0) > 0) ...[
+      const SizedBox(height: 2),
+      Text(
+        '+ ₱${fmt(double.parse(room.serviceFee))} service fee',
+        style: const TextStyle(
+          fontSize: 10,
+          color: AppColors.textLight,
+        ),
+      ),
+    ],
+
+    // Security Deposit
+    if ((double.tryParse(room.securityDeposit) ?? 0) > 0) ...[
+      const SizedBox(height: 2),
+      Text(
+        '₱${fmt(double.parse(room.securityDeposit))} deposit',
+        style: const TextStyle(
+          fontSize: 10,
+          color: AppColors.textLight,
+        ),
+      ),
+    ],
+
+  ],
+),
+        ],
+      ),
+    );
+  }
+}
+class _AvailabilityBadge extends StatelessWidget {
+  final bool available;
+  final int units;
+
+  const _AvailabilityBadge({
+    required this.available,
+    required this.units,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: available
+            ? const Color(0xFF22C55E).withOpacity(.12)
+            : const Color(0xFFEF4444).withOpacity(.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: available
+                  ? const Color(0xFF22C55E)
+                  : const Color(0xFFEF4444),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            available
+                ? '$units unit${units == 1 ? '' : 's'} left'
+                : 'Full',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: available
+                  ? const Color(0xFF059669)
+                  : const Color(0xFFEF4444),
+            ),
           ),
         ],
       ),
     );
   }
 }
-
-// ── Shared small widgets ──────────────────────────────────────────────────────
-
-class _AvailabilityBadge extends StatelessWidget {
-  final bool available;
-  final int units;
-  const _AvailabilityBadge({required this.available, required this.units});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: available
-              ? _successGreen.withOpacity(.12)
-              : _errorRed.withOpacity(.10),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-              width: 6, height: 6,
-              decoration: BoxDecoration(
-                  color: available ? _successGreen : _errorRed, shape: BoxShape.circle)),
-          const SizedBox(width: 4),
-          Text(
-            available ? '$units unit${units == 1 ? '' : 's'} left' : 'Full',
-            style: TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w600,
-              color: available ? const Color(0xFF059669) : _errorRed,
-            ),
-          ),
-        ]),
-      );
-}
-
 class _MetaChip extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -757,10 +661,10 @@ class _CategoryBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration:
-            BoxDecoration(color: _orangeLight, borderRadius: BorderRadius.circular(20)),
+            BoxDecoration(color: AppColors.orangeLight, borderRadius: BorderRadius.circular(20)),
         child: Text(label,
-            style: const TextStyle(
-                fontSize: 11.5, color: _primaryOrange, fontWeight: FontWeight.w600)),
+            style: TextStyle(
+                fontSize: 11.5, color: AppColors.primaryOrange, fontWeight: FontWeight.w600)),
       );
 }
 
@@ -786,9 +690,9 @@ class _RentalTermsSection extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: _bgLight,
+              color: AppColors.background(context),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: _borderColor),
+              border: Border.all(color: AppColors.border),
             ),
             child: Column(children: [
               _TermRow(
@@ -796,14 +700,7 @@ class _RentalTermsSection extends StatelessWidget {
                 label: 'Minimum Stay',
                 value: '${terms.minimumStayMonths} month${terms.minimumStayMonths == 1 ? '' : 's'}',
               ),
-              Divider(height: 1, color: _borderColor),
-              _TermRow(
-                icon:       Icons.shield_outlined,
-                label:      'Security Deposit',
-                value:      '₱${fmt(terms.securityDepositAmount)}',
-                valueColor: _primaryOrange,
-              ),
-              Divider(height: 1, color: _borderColor),
+              Divider(height: 1, color: AppColors.border),
               _TermRow(
                 icon:  Icons.payments_outlined,
                 label: 'Advance Payment',
@@ -829,16 +726,16 @@ class _TermRow extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(children: [
-          Icon(icon, size: 18, color: _primaryOrange),
+          Icon(icon, size: 18, color: AppColors.primaryOrange),
           const SizedBox(width: 12),
           Expanded(
               child: Text(label,
-                  style: const TextStyle(fontSize: 13.5, color: _textMid))),
+                  style: TextStyle(fontSize: 13.5, color: AppColors.textMid))),
           Text(value,
               style: TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w700,
-                  color: valueColor ?? _textDark)),
+                  color: valueColor ?? AppColors.text(context))),
         ]),
       );
 }
@@ -878,9 +775,9 @@ class _RuleChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.card(context),
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: _borderColor),
+          border: Border.all(color: AppColors.border),
           boxShadow: [
             BoxShadow(
                 color: Colors.black.withOpacity(.03),
@@ -889,12 +786,12 @@ class _RuleChip extends StatelessWidget {
           ],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.check_circle_outline_rounded,
-              size: 14, color: _primaryOrange),
+          Icon(Icons.check_circle_outline_rounded,
+              size: 14, color: AppColors.primaryOrange),
           const SizedBox(width: 6),
           Text(label,
-              style: const TextStyle(
-                  fontSize: 12.5, color: _textDark, fontWeight: FontWeight.w500)),
+              style: TextStyle(
+                  fontSize: 12.5, color: AppColors.text(context), fontWeight: FontWeight.w500)),
         ]),
       );
 }
@@ -905,8 +802,8 @@ class _RuleChip extends StatelessWidget {
 
 class _RoomSelectionSheet extends StatefulWidget {
   final ApartmentModel apt;
-  final List<RoomOfferData> rooms;
-  final ValueChanged<RoomOfferData> onConfirm;
+  final List<RoomOffer> rooms;
+  final ValueChanged<RoomOffer> onConfirm;
 
   const _RoomSelectionSheet(
       {required this.apt, required this.rooms, required this.onConfirm});
@@ -916,7 +813,7 @@ class _RoomSelectionSheet extends StatefulWidget {
 }
 
 class _RoomSelectionSheetState extends State<_RoomSelectionSheet> {
-  RoomOfferData? _selected;
+  RoomOffer? _selected;
 
   String _fmt(double p) => p
       .toStringAsFixed(0)
@@ -927,8 +824,8 @@ class _RoomSelectionSheetState extends State<_RoomSelectionSheet> {
     final bottom = MediaQuery.of(context).padding.bottom;
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       padding: EdgeInsets.fromLTRB(20, 0, 20, bottom + 20),
@@ -946,13 +843,13 @@ class _RoomSelectionSheetState extends State<_RoomSelectionSheet> {
             ),
           ),
 
-          const Text('Select a Room',
+          Text('Select a Room',
               style: TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.bold, color: _textDark)),
+                  fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.text(context))),
           const SizedBox(height: 4),
           Text(
             'Choose the room type you\'d like to rent at ${widget.apt.name}',
-            style: const TextStyle(fontSize: 13, color: _textMid),
+            style: TextStyle(fontSize: 13, color: AppColors.textMid),
           ),
 
           const SizedBox(height: 16),
@@ -963,11 +860,11 @@ class _RoomSelectionSheetState extends State<_RoomSelectionSheet> {
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Center(
                 child: Column(children: const [
-                  Icon(Icons.do_not_disturb_on_outlined, size: 40, color: _textLight),
+                  Icon(Icons.do_not_disturb_on_outlined, size: 40, color: AppColors.textLight),
                   SizedBox(height: 8),
                   Text('No rooms available right now',
                       style:
-                          TextStyle(color: _textMid, fontWeight: FontWeight.w500)),
+                          TextStyle(color: AppColors.textMid, fontWeight: FontWeight.w500)),
                 ]),
               ),
             )
@@ -981,10 +878,10 @@ class _RoomSelectionSheetState extends State<_RoomSelectionSheet> {
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: sel ? _orangeLight : _bgLight,
+                    color: sel ? AppColors.orangeLight : AppColors.background(context),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                        color: sel ? _primaryOrange : _borderColor,
+                        color: sel ? AppColors.primaryOrange : AppColors.border,
                         width: sel ? 1.5 : 1),
                   ),
                   child: Row(children: [
@@ -994,12 +891,12 @@ class _RoomSelectionSheetState extends State<_RoomSelectionSheet> {
                       width: 22, height: 22,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: sel ? _primaryOrange : Colors.transparent,
+                        color: sel ? AppColors.primaryOrange : Colors.transparent,
                         border: Border.all(
-                            color: sel ? _primaryOrange : _textLight, width: 1.5),
+                            color: sel ? AppColors.primaryOrange : AppColors.textLight, width: 1.5),
                       ),
                       child: sel
-                          ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                          ? Icon(Icons.check_rounded, size: 14, color: Colors.white)
                           : null,
                     ),
 
@@ -1011,23 +908,73 @@ class _RoomSelectionSheetState extends State<_RoomSelectionSheet> {
                         Text(room.roomType,
                             style: TextStyle(
                               fontWeight: FontWeight.w700, fontSize: 14,
-                              color: sel ? _primaryOrange : _textDark,
+                              color: sel ? AppColors.primaryOrange : AppColors.text(context),
                             )),
                         const SizedBox(height: 2),
                         Text(
                           '${room.availableUnits} unit${room.availableUnits == 1 ? '' : 's'} · '
                           'max ${room.maxOccupants} pax · ${room.genderRestriction}',
-                          style: const TextStyle(fontSize: 12, color: _textMid),
+                          style: TextStyle(fontSize: 12, color: AppColors.textMid),
                         ),
                       ]),
                     ),
 
-                    // Price
-                    Text('₱${_fmt(room.priceMonthly)}/mo',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800, fontSize: 14,
-                          color: sel ? _primaryOrange : _textDark,
-                        )),
+// Price + Service Fee
+// Price + Fees
+Column(
+  crossAxisAlignment: CrossAxisAlignment.end,
+  mainAxisSize: MainAxisSize.min,
+  children: [
+
+    // Price
+    Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '₱${_fmt(room.activePrice)}',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+            color: sel ? AppColors.primaryOrange : AppColors.text(context),
+          ),
+        ),
+        const SizedBox(width: 2),
+        Text(
+          room.pricingMode == 'daily' ? '/day' : '/mo',
+          style: TextStyle(
+            fontSize: 11,
+            color: sel ? AppColors.primaryOrange : AppColors.textMid,
+          ),
+        ),
+      ],
+    ),
+
+    // Service Fee
+    if ((double.tryParse(room.serviceFee) ?? 0) > 0) ...[
+      const SizedBox(height: 2),
+      Text(
+        '+ ₱${_fmt(double.parse(room.serviceFee))} service fee',
+        style: const TextStyle(
+          fontSize: 10,
+          color: AppColors.textLight,
+        ),
+      ),
+    ],
+
+    // Security Deposit
+    if ((double.tryParse(room.securityDeposit) ?? 0) > 0) ...[
+      const SizedBox(height: 2),
+      Text(
+        '₱${_fmt(double.parse(room.securityDeposit))} refundable deposit',
+        style: const TextStyle(
+          fontSize: 10,
+          color: AppColors.textLight,
+        ),
+      ),
+    ],
+
+  ],
+)
                   ]),
                 ),
               );
@@ -1041,7 +988,7 @@ class _RoomSelectionSheetState extends State<_RoomSelectionSheet> {
             child: ElevatedButton(
               onPressed: _selected == null ? null : () => widget.onConfirm(_selected!),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryOrange,
+                backgroundColor: AppColors.primaryOrange,
                 foregroundColor: Colors.white,
                 disabledBackgroundColor: Colors.grey.shade200,
                 elevation: 0,
@@ -1050,7 +997,7 @@ class _RoomSelectionSheetState extends State<_RoomSelectionSheet> {
               ),
               child: Text(
                 _selected == null ? 'Select a room to continue' : 'Proceed to Book',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
               ),
             ),
           ),
@@ -1066,27 +1013,45 @@ class _RoomSelectionSheetState extends State<_RoomSelectionSheet> {
 
 class _BottomBar extends StatelessWidget {
   final ApartmentModel apt;
-  final List<RoomOfferData> rooms;
+  final List<RoomOffer> rooms;
   final String Function(double) fmt;
   final VoidCallback onRent;
 
-  const _BottomBar(
-      {required this.apt, required this.rooms, required this.fmt, required this.onRent});
+  const _BottomBar({
+    required this.apt,
+    required this.rooms,
+    required this.fmt,
+    required this.onRent,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // Derive display price from live room data; fall back to property's minPrice
-    final available = rooms.where((r) => r.isAvailable && r.availableUnits > 0).toList();
-    final displayPrice = available.isNotEmpty
-        ? available.map((r) => r.priceMonthly).reduce((a, b) => a < b ? a : b)
-        : apt.minPrice;
+
+    // Filter available rooms
+    final available = rooms.where((r) {
+      final units = int.tryParse(r.availableUnits) ?? 0;
+      return r.isAvailable && units > 0;
+    }).toList();
+
+    // Get lowest room price
+RoomOffer? cheapestRoom;
+
+if (available.isNotEmpty) {
+  cheapestRoom = available.reduce(
+    (a, b) => a.activePrice < b.activePrice ? a : b,
+  );
+}
+
+final displayPrice =
+    cheapestRoom != null ? cheapestRoom.activePrice : apt.minPrice;
+
     final hasRooms = available.isNotEmpty;
 
     return Container(
       padding: EdgeInsets.fromLTRB(
           20, 12, 20, MediaQuery.of(context).padding.bottom + 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         boxShadow: [
           BoxShadow(
               blurRadius: 10,
@@ -1102,11 +1067,18 @@ class _BottomBar extends StatelessWidget {
           children: [
             Text(
               'from ₱${fmt(displayPrice)}',
-              style: const TextStyle(
-                  color: _primaryOrange, fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  color: AppColors.primaryOrange, fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const Text('/month',
-                style: TextStyle(fontSize: 11, color: _textLight)),
+            Text(
+  cheapestRoom?.pricingMode == 'daily'
+      ? '/day'
+      : '/month',
+  style: const TextStyle(
+    fontSize: 11,
+    color: AppColors.textLight,
+  ),
+)
           ],
         ),
 
@@ -1116,7 +1088,7 @@ class _BottomBar extends StatelessWidget {
           child: ElevatedButton(
             onPressed: hasRooms ? onRent : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryOrange,
+              backgroundColor: AppColors.primaryOrange,
               foregroundColor: Colors.white,
               disabledBackgroundColor: Colors.grey.shade200,
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1125,7 +1097,7 @@ class _BottomBar extends StatelessWidget {
             ),
             child: Text(
               hasRooms ? 'Rent' : 'Unavailable',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),
         ),
@@ -1166,7 +1138,7 @@ class _ImageGalleryState extends State<_ImageGallery> {
           child: widget.images.isEmpty
               ? Container(
                   color: Colors.grey[200],
-                  child: const Icon(Icons.image, size: 80, color: Colors.grey),
+                  child: Icon(Icons.image, size: 80, color: Colors.grey),
                 )
               : PageView.builder(
                   controller: widget.controller,
@@ -1192,10 +1164,10 @@ class _ImageGalleryState extends State<_ImageGallery> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.card(context),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.chevron_left),
+                child: Icon(Icons.chevron_left),
               ),
             ),
           ),
@@ -1213,7 +1185,7 @@ class _ImageGalleryState extends State<_ImageGallery> {
               ),
               child: Text(
                 '${_currentIndex + 1}/${widget.images.length}',
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+                style: TextStyle(color: AppColors.card(context), fontSize: 12),
               ),
             ),
           ),
@@ -1281,7 +1253,7 @@ class _OwnerRow extends StatelessWidget {
       CircleAvatar(
         radius: 22,
         backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
-        child: photo.isEmpty ? const Icon(Icons.person) : null,
+        child: photo.isEmpty ? Icon(Icons.person) : null,
       ),
       const SizedBox(width: 10),
       Expanded(
@@ -1290,7 +1262,7 @@ class _OwnerRow extends StatelessWidget {
     children: [
       Text(
         name.isNotEmpty ? name : 'Host',
-        style: const TextStyle(
+        style: TextStyle(
           fontWeight: FontWeight.bold,
           fontSize: 14,
         ),
@@ -1308,12 +1280,12 @@ class _OwnerRow extends StatelessWidget {
 ),
       IconButton(
         onPressed: onChat,
-        icon: const Icon(Icons.chat_bubble_outline),
+        icon: Icon(Icons.chat_bubble_outline),
       ),
       const SizedBox(width: 8),
       IconButton(
         onPressed: onCall,
-        icon: const Icon(Icons.phone_outlined),
+        icon: Icon(Icons.phone_outlined),
       ),
     ],
   );
@@ -1364,7 +1336,7 @@ class _FacilitiesSection extends StatelessWidget {
                 Icon(_facilityIcons[f] ?? Icons.check_circle_outline,
                     size: 20, color: Colors.grey[700]),
                 const SizedBox(width: 12),
-                Text(f, style: const TextStyle(fontSize: 14)),
+                Text(f, style: TextStyle(fontSize: 14)),
               ]),
             )),
       ]),
@@ -1391,7 +1363,7 @@ class _FacilitiesSection extends StatelessWidget {
                     Icon(_facilityIcons[f] ?? Icons.check_circle_outline,
                         size: 20, color: Colors.grey[700]),
                     const SizedBox(width: 12),
-                    Text(f, style: const TextStyle(fontSize: 14)),
+                    Text(f, style: TextStyle(fontSize: 14)),
                   ]),
                 )),
             const SizedBox(height: 20),
@@ -1468,10 +1440,10 @@ class _NearbyFacilitiesSection extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(f.name,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12, fontWeight: FontWeight.w600)),
                         Text(f.distance,
-                            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                            style: TextStyle(fontSize: 11, color: Colors.grey)),
                       ],
                     ),
                   ),
@@ -1486,32 +1458,58 @@ class _NearbyFacilitiesSection extends StatelessWidget {
 class _AboutSection extends StatefulWidget {
   final String description;
   const _AboutSection({required this.description});
+
   @override
   State<_AboutSection> createState() => _AboutSectionState();
 }
 
 class _AboutSectionState extends State<_AboutSection> {
   bool _expanded = false;
+
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text("About location's neighborhood",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          Text(
+            "About location's neighborhood",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.text(context),
+            ),
+          ),
+
           const SizedBox(height: 8),
-          Text(widget.description,
-              maxLines: _expanded ? null : 5,
-              overflow: _expanded ? null : TextOverflow.ellipsis,
-              style:
-                  const TextStyle(fontSize: 13, color: Colors.black87, height: 1.5)),
+
+          Text(
+            widget.description,
+            maxLines: _expanded ? null : 5,
+            overflow: _expanded ? null : TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textMid,
+              height: 1.5,
+            ),
+          ),
+
           GestureDetector(
             onTap: () => setState(() => _expanded = !_expanded),
-            child: Text(_expanded ? 'Show less' : 'Read more',
-                style: const TextStyle(
-                    color: _primaryOrange, fontWeight: FontWeight.w500)),
+            child: Text(
+              _expanded ? 'Show less' : 'Read more',
+              style: TextStyle(
+                color: AppColors.primaryOrange,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
-        ]),
-      );
+        ],
+      ),
+    );
+  }
 }
 
 class _TestimonialsSection extends StatelessWidget {
@@ -1549,18 +1547,18 @@ class _TestimonialCardState extends State<_TestimonialCard> {
               backgroundImage: widget.testimonial.photoUrl.isNotEmpty
                   ? NetworkImage(widget.testimonial.photoUrl) : null,
               child: widget.testimonial.photoUrl.isEmpty
-                  ? const Icon(Icons.person, size: 20) : null,
+                  ? Icon(Icons.person, size: 20) : null,
             ),
             const SizedBox(width: 10),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(widget.testimonial.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               Row(
                 children: List.generate(
                   5,
                   (i) => Icon(Icons.star, size: 14,
                       color: i < widget.testimonial.rating
-                          ? _primaryOrange : Colors.grey[300]),
+                          ? AppColors.primaryOrange : Colors.grey[300]),
                 ),
               ),
             ]),
@@ -1569,13 +1567,13 @@ class _TestimonialCardState extends State<_TestimonialCard> {
           Text(widget.testimonial.comment,
               maxLines: _expanded ? null : 3,
               overflow: _expanded ? null : TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 13, color: Colors.black87, height: 1.5)),
           GestureDetector(
             onTap: () => setState(() => _expanded = !_expanded),
             child: Text(_expanded ? 'Show less' : 'Read more',
-                style: const TextStyle(
-                    color: _primaryOrange, fontWeight: FontWeight.w500)),
+                style: TextStyle(
+                    color: AppColors.primaryOrange, fontWeight: FontWeight.w500)),
           ),
         ]),
       );
@@ -1655,7 +1653,7 @@ class _FullscreenGalleryPageState
                     color: Colors.black54,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Icon(Icons.close, color: Colors.white),
+                  child: Icon(Icons.close, color: AppColors.card(context)),
                 ),
               ),
             ),
@@ -1669,8 +1667,8 @@ class _FullscreenGalleryPageState
             child: Center(
               child: Text(
                 '${_index + 1} / ${widget.images.length}',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.card(context),
                   fontSize: 14,
                 ),
               ),
