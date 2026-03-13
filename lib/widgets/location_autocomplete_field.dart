@@ -223,7 +223,7 @@ void _close() {
         child: CompositedTransformFollower(
           link:             _layerLink,
           showWhenUnlinked: false,
-          offset:           Offset(0, fieldH + 6),
+          offset:           Offset(0, fieldH),
           child: FadeTransition(
             opacity: _fadeAnim,
             child: SlideTransition(
@@ -350,52 +350,51 @@ class _DropdownCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Material(
-      color:       Colors.transparent,
-      // Material needed so InkWell ripples render inside the overlay
-      child: Container(
-        constraints: const BoxConstraints(maxHeight: 300),
-        decoration: BoxDecoration(
-          color: isDark
-              ? const Color(0xFF1E1E1E)
-              : Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: AppColors.primaryOrange.withOpacity(.18),
-            width: 1,
+      color: Colors.transparent,
+      child: ConstrainedBox(                          // ← cap height, don't set it
+        constraints: const BoxConstraints(maxHeight: 260),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: AppColors.primaryOrange.withOpacity(.18),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color:      Colors.black.withOpacity(isDark ? .32 : .10),
+                blurRadius: 28,
+                offset:     const Offset(0, 10),
+              ),
+              BoxShadow(
+                color:      AppColors.primaryOrange.withOpacity(.06),
+                blurRadius: 10,
+                offset:     const Offset(0, 2),
+              ),
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color:      Colors.black.withOpacity(isDark ? .32 : .10),
-              blurRadius: 28,
-              offset:     const Offset(0, 10),
-            ),
-            BoxShadow(
-              color:      AppColors.primaryOrange.withOpacity(.06),
-              blurRadius: 10,
-              offset:     const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: ListView.separated(
-            padding:          EdgeInsets.zero,
-            shrinkWrap:       true,
-            physics:          const BouncingScrollPhysics(),
-            itemCount:        suggestions.length,
-            separatorBuilder: (_, __) => Divider(
-              height:    1,
-              thickness: 1,
-              color:     AppColors.border.withOpacity(.45),
-              indent:    52,
-              endIndent: 16,
-            ),
-            itemBuilder: (_, i) => _SuggestionTile(
-              city:    suggestions[i],
-              query:   query,
-              onTap:   onSelect,
-              isFirst: i == 0,
-              isLast:  i == suggestions.length - 1,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: ListView.separated(
+              padding:          EdgeInsets.zero,
+              shrinkWrap:       true,               // ← content drives height
+              physics:          const BouncingScrollPhysics(), // ← allows scroll when capped
+              itemCount:        suggestions.length,
+              separatorBuilder: (_, __) => Divider(
+                height:    1,
+                thickness: 1,
+                color:     AppColors.border.withOpacity(.45),
+                indent:    52,
+                endIndent: 16,
+              ),
+              itemBuilder: (_, i) => _SuggestionTile(
+                city:    suggestions[i],
+                query:   query,
+                onTap:   onSelect,
+                isFirst: i == 0,
+                isLast:  i == suggestions.length - 1,
+              ),
             ),
           ),
         ),
@@ -449,8 +448,8 @@ class _SuggestionTileState extends State<_SuggestionTile> {
         padding: EdgeInsets.only(
           left:   16,
           right:  16,
-          top:    widget.isFirst ? 14 : 11,
-          bottom: widget.isLast  ? 14 : 11,
+          top:    widget.isFirst ? 10 : 10,
+          bottom: widget.isLast  ? 10 : 10,
         ),
         child: Row(
           children: [

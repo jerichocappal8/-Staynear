@@ -122,16 +122,16 @@ void dispose() {
 
     try {
       // ── Normalize city string ─────────────────────────────────────────
-      String? city = _filters['city']?.toString();
-      if (city != null) {
-        final lower = city.trim().toLowerCase();
-        if      (lower.contains('urdaneta'))   city = 'Urdaneta City';
-        else if (lower.contains('dagupan'))    city = 'Dagupan City';
-        else if (lower.contains('binalonan'))  city = 'Binalonan';
-        else if (lower.contains('mangaldan'))  city = 'Mangaldan';
-        else if (lower.contains('san carlos')) city = 'San Carlos City';
-        else                                   city = city.trim();
-      }
+// Use cities exactly as selected
+List<String> cities = [];
+
+if (_filters['city'] != null) {
+  cities.add(_filters['city'].toString().trim());
+}
+
+if (_filters['cities'] != null) {
+  cities.addAll((_filters['cities'] as List).cast<String>());
+}
 
       // ── Fetch all active properties ───────────────────────────────────
       final snap = await FirebaseFirestore.instance
@@ -153,10 +153,9 @@ void dispose() {
 // ── Client-side city OR apartment name filter ─────────────────────
 final nameFilter = _filters['name']?.toString();
 
-if ((city != null && city.trim().isNotEmpty) || 
+if ((cities.isNotEmpty) || 
     (nameFilter != null && nameFilter.trim().isNotEmpty)) {
 
-  final citySearch = city?.toLowerCase();
   final nameSearch = nameFilter?.toLowerCase();
 
   docs = docs.where((doc) {
@@ -170,11 +169,12 @@ if ((city != null && city.trim().isNotEmpty) ||
     bool cityMatch = false;
     bool nameMatch = false;
 
-    if (citySearch != null) {
-      cityMatch =
-          cityField.contains(citySearch) ||
-          addressField.contains(citySearch);
-    }
+if (cities.isNotEmpty) {
+  cityMatch = cities.any((c) {
+    final search = c.toLowerCase();
+    return cityField.contains(search) || addressField.contains(search);
+  });
+}
 
     if (nameSearch != null) {
       nameMatch = nameField.contains(nameSearch);
@@ -410,8 +410,17 @@ final label = '₱${_comma(price)}$mode';
       }
       _zoomToMarker(docId);
     } else {
-      _panMapTo(docId);
-    }
+  _panMapTo(docId);
+
+  // collapse the sheet so map becomes focus
+  if (_sheetCtrl.isAttached) {
+    _sheetCtrl.animateTo(
+      _sheetMinSize,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
+  }
+}
   }
 
   Future<void> _clearSelection() async {
@@ -509,6 +518,7 @@ void _moveCameraToFirst() {
   void _clearFilters() {
     setState(() {
       _filters.remove('city');
+      _filters.remove('cities');
       _searchCtrl.clear();
     });
     _loadResults();
@@ -596,11 +606,6 @@ void _moveCameraToFirst() {
           ),
 
           // ④ Floating map action buttons
-          Positioned(
-            right:  16,
-            bottom: MediaQuery.of(context).size.height * _sheetInitSize + 12,
-            child:  _buildMapFABs(),
-          ),
         ],
       ),
     );
@@ -740,54 +745,96 @@ void _moveCameraToFirst() {
             ),
 
             const SizedBox(width: 10),
+// ── Shared ExploreSearchBar ───────────────────────────────────
+Expanded(
+  child: ExploreSearchBar(
+    controller: _searchCtrl,
+    includeApartments: true,
 
-            // ── Shared ExploreSearchBar ───────────────────────────────────
-            Expanded(
-              child: ExploreSearchBar(
-                controller:     _searchCtrl,
-                onCitySelected: (city) {
-                  String normalized = city.toLowerCase();
-                  if      (normalized.contains('urdaneta'))   normalized = 'Urdaneta City';
-                  else if (normalized.contains('dagupan'))    normalized = 'Dagupan City';
-                  else if (normalized.contains('binalonan'))  normalized = 'Binalonan';
-                  else if (normalized.contains('mangaldan'))  normalized = 'Mangaldan';
-                  else if (normalized.contains('san carlos')) normalized = 'San Carlos City';
+    // ── CITY SELECTED ─────────────────────────────────────────
+onCitySelected: (city) {
+  String normalized = city.toLowerCase();
 
-                  setState(() {
-                    _filters['city'] = normalized;
-                    _searchCtrl.text = normalized;
-                  });
-                  _loadResults();
-                },
-                onFilterTap: () async {
+  if (normalized.contains('urdaneta')) {
+    normalized = 'Urdaneta City';
+  } else if (normalized.contains('dagupan')) {
+    normalized = 'Dagupan City';
+  } else if (normalized.contains('binalonan')) {
+    normalized = 'Binalonan';
+  } else if (normalized.contains('mangaldan')) {
+    normalized = 'Mangaldan';
+  } else if (normalized.contains('san carlos')) {
+    normalized = 'San Carlos City';
+  }
 
-  final filters = await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const SearchFilterScreen(),
-    ),
-  );
+  setState(() {
+    // ⭐ IMPORTANT: reset filters
+    _filters = {
+      'city': normalized,
+    };
 
-  if (filters != null && mounted) {
-    setState(() {
-      _filters = Map<String, dynamic>.from(filters);
+    _searchCtrl.text = normalized;
+  });
 
-      if (_filters['city'] != null) {
-        _searchCtrl.text = _filters['city'];
-      }
-    });
+  _loadResults();
+},
 
-    _loadResults();
+    // ⭐ APARTMENT SELECTED (NEW)
+onApartmentSelected: (apartmentName) async {
+  try {
+    final snap = await FirebaseFirestore.instance
+        .collection('properties')
+        .where('name', isEqualTo: apartmentName)
+        .limit(1)
+        .get();
+
+    if (snap.docs.isEmpty) return;
+
+    final docId = snap.docs.first.id;
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ApartmentDetailPage(
+          apartmentId: docId,
+        ),
+      ),
+    );
+  } catch (e) {
+    debugPrint('Home apartment search error: $e');
   }
 },
-              ),
-            ),
+
+    // ── FILTER BUTTON ─────────────────────────────────────────
+    onFilterTap: () async {
+      final filters = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const SearchFilterScreen(),
+        ),
+      );
+
+      if (filters != null && mounted) {
+        setState(() {
+          _filters = Map<String, dynamic>.from(filters);
+
+          if (_filters['city'] != null) {
+            _searchCtrl.text = _filters['city'];
+          }
+        });
+
+        _loadResults();
+      }
+    },
+  ),
+),
           ],
         ),
       ),
     );
   }
-
   Widget _topBarButton({
     required VoidCallback onTap,
     required Widget child,
@@ -1040,14 +1087,19 @@ void _moveCameraToFirst() {
 
     return GestureDetector(
       onTap: () {
-        _selectById(doc.id, fromMarker: false);
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ApartmentDetailPage(apartmentId: doc.id),
-          ),
-        );
-      },
+  if (_selectedId == doc.id) {
+    // SECOND TAP → open detail page
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ApartmentDetailPage(apartmentId: doc.id),
+      ),
+    );
+  } else {
+    // FIRST TAP → select + move map
+    _selectById(doc.id, fromMarker: false);
+  }
+},
       onLongPress: () => _selectById(doc.id, fromMarker: false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 240),

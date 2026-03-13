@@ -46,7 +46,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen>
     with SingleTickerProviderStateMixin {
 
   // ── Location ──────────────────────────────────────────────────────────────
-  String _selectedCity = '';
+  List<String> _selectedCities = [];
   final _locationCtrl  = TextEditingController();
 
   // ── Pricing mode ──────────────────────────────────────────────────────────
@@ -149,7 +149,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen>
 
   void _resetAll() {
     setState(() {
-      _selectedCity       = '';
+      _selectedCities.clear();
       _locationCtrl.clear();
       _pricingMode        = 'monthly';
       _priceRange         = RangeValues(0, _monthlyMax);
@@ -165,7 +165,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen>
 
   void _showResults() {
     Navigator.pop(context, {
-      'city':              _selectedCity.trim(),
+      'cities': _selectedCities,
       'minPrice':          _priceRange.start,
       'maxPrice':          _priceRange.end,
       'pricingMode':       _pricingMode,
@@ -204,7 +204,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen>
   }
 
   bool get _hasActiveFilters =>
-      _selectedCity.isNotEmpty        ||
+      _selectedCities.isNotEmpty      ||
       _priceRange.start > 0           ||
       _priceRange.end < _priceMax     ||
       _selectedCategory != null       ||
@@ -451,46 +451,60 @@ class _SearchFilterScreenState extends State<SearchFilterScreen>
         LocationAutocompleteField(
           controller: _locationCtrl,
           hint:       'Search city or location',
-          onSelected: (city) => setState(() => _selectedCity = city),
-          onChanged:  (v)    => setState(() => _selectedCity = v),
+          onSelected: (city) {
+  if (!_selectedCities.contains(city)) {
+    setState(() {
+      _selectedCities.add(city);
+      _locationCtrl.clear();
+    });
+  }
+},
         ),
-        if (_selectedCity.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color:        AppColors.orangeLight,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                  color: AppColors.primaryOrange.withOpacity(.3)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.location_on_rounded,
-                    color: AppColors.primaryOrange, size: 14),
-                const SizedBox(width: 6),
-                Text(
-                  _selectedCity,
-                  style: const TextStyle(
-                    fontSize:   13,
-                    fontWeight: FontWeight.w600,
-                    color:      AppColors.primaryOrange,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => setState(() {
-                    _selectedCity = '';
-                    _locationCtrl.clear();
-                  }),
-                  child: const Icon(Icons.close_rounded,
-                      size: 14, color: AppColors.primaryOrange),
-                ),
-              ],
-            ),
+        if (_selectedCities.isNotEmpty) ...[
+  const SizedBox(height: 10),
+  Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: _selectedCities.map((city) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.orangeLight,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: AppColors.primaryOrange.withOpacity(.3),
           ),
-        ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.location_on_rounded,
+                color: AppColors.primaryOrange, size: 14),
+            const SizedBox(width: 6),
+            Text(
+              city,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primaryOrange,
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedCities.remove(city);
+                });
+              },
+              child: const Icon(Icons.close_rounded,
+                  size: 14, color: AppColors.primaryOrange),
+            ),
+          ],
+        ),
+      );
+    }).toList(),
+  ),
+],
       ],
     );
   }

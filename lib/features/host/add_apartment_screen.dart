@@ -93,12 +93,14 @@ class _AddApartmentScreenState extends State<AddApartmentScreen>
   final descCtrl     = TextEditingController();
 
   // ── Property Category ─────────────────────────────────────────────────────
-  static const _categories = [
-    'Apartment Building',
-    'Boarding House',
-    'Condo Unit',
-    'Whole House',
-  ];
+static const _categories = [
+  'Boarding House',
+  'Apartment',
+  'Dorm',
+  'Studio',
+  'Condo',
+  'Whole House',
+];
 String? _selectedCity = 'Urdaneta City';
   String? _selectedCategory;
 

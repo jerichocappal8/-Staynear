@@ -5,6 +5,7 @@ import '../../services/biometric_service.dart';
 import '../auth/auth_screen.dart';
 import '../home/main_shell.dart';
 import '../../core/app_colors.dart';
+import '../onboarding/onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -21,36 +22,50 @@ class _SplashScreenState extends State<SplashScreen> {
     _startApp();
   }
 
-  Future<void> _startApp() async {
+Future<void> _startApp() async {
 
-    await Future.delayed(const Duration(milliseconds: 800));
+  await Future.delayed(const Duration(milliseconds: 800));
 
-    final user = FirebaseAuth.instance.currentUser;
+  /// check onboarding first
+  final seenOnboarding =
+      SettingsPrefs.getBool("seenOnboarding") ?? false;
 
-    /// not logged in
-    if (user == null) {
-      _goToLogin();
-      return;
-    }
-
-    /// check biometric setting
-    final biometricEnabled =
-        SettingsPrefs.getBool(SettingsPrefs.kSecurityBiometric);
-
-    if (!biometricEnabled) {
-      _goToHome();
-      return;
-    }
-
-    /// authenticate
-    final authenticated = await BiometricService.authenticate();
-
-    if (authenticated) {
-      _goToHome();
-    } else {
-      _goToLogin();
-    }
+  if (!seenOnboarding) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const OnboardingScreen(),
+      ),
+    );
+    return;
   }
+
+  final user = FirebaseAuth.instance.currentUser;
+
+  /// not logged in
+  if (user == null) {
+    _goToLogin();
+    return;
+  }
+
+  /// check biometric setting
+  final biometricEnabled =
+      SettingsPrefs.getBool(SettingsPrefs.kSecurityBiometric);
+
+  if (!biometricEnabled) {
+    _goToHome();
+    return;
+  }
+
+  /// authenticate
+  final authenticated = await BiometricService.authenticate();
+
+  if (authenticated) {
+    _goToHome();
+  } else {
+    _goToLogin();
+  }
+}
 
 void _goToHome() {
   Navigator.pushReplacement(

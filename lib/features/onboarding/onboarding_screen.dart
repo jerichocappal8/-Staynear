@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../auth/auth_screen.dart';
+import '../../core/settings_prefs.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -108,14 +109,17 @@ class OnboardingScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: InkWell(
                 borderRadius: BorderRadius.circular(30),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AuthScreen(isLogin: true),
-                    ),
-                  );
-                },
+                onTap: () async {
+
+  await SettingsPrefs.setBool("seenOnboarding", true);
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => AuthScreen(isLogin: true),
+    ),
+  );
+},
                 child: Container(
                   height: 55,
                   width: double.infinity,
@@ -146,14 +150,17 @@ class OnboardingScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: InkWell(
                 borderRadius: BorderRadius.circular(30),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AuthScreen(isLogin: false),
-                    ),
-                  );
-                },
+                onTap: () async {
+
+  await SettingsPrefs.setBool("seenOnboarding", true);
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => AuthScreen(isLogin: false),
+    ),
+  );
+},
                 child: Container(
                   height: 55,
                   width: double.infinity,

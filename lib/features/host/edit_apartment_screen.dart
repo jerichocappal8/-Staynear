@@ -154,9 +154,14 @@ class _EditApartmentScreenState extends State<EditApartmentScreen>
     with TickerProviderStateMixin {
 
   // ── Static option lists ───────────────────────────────────────────────────
-  static const _categories = [
-    'Apartment Building', 'Boarding House', 'Condo Unit', 'Whole House',
-  ];
+static const _categories = [
+  'Boarding House',
+  'Apartment',
+  'Dorm',
+  'Studio',
+  'Condo',
+  'Whole House',
+];
   static const _roomTypes = [
     'Studio', '1 Bedroom', '2 Bedroom', 'Bed Space', 'Entire Unit',
   ];
@@ -889,41 +894,21 @@ Future<void> _updateApartment() async {
     );
   }
 Widget _categorySection() {
-  return Wrap(
-    spacing: 10,
-    runSpacing: 10,
-    children: _categories.map((category) {
-      final selected = _selectedCategory == category;
+  return Column(
+    children: [
 
-      return GestureDetector(
-        onTap: () {
+      _inlineDropdown<String>(
+        value: _selectedCategory,
+        items: _categories,
+        hint: "Select property category",
+        onChanged: (val) {
           setState(() {
-            _selectedCategory = category;
+            _selectedCategory = val;
           });
         },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: selected
-                ? AppColors.primaryOrange
-                : AppColors.cardSoft(context),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: selected
-                  ? AppColors.primaryOrange
-                  : AppColors.border,
-            ),
-          ),
-          child: Text(
-            category,
-            style: TextStyle(
-              color: selected ? Colors.white : AppColors.text(context),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      );
-    }).toList(),
+      ),
+
+    ],
   );
 }
   // ════════════════════════════════════════════════════════════════════════

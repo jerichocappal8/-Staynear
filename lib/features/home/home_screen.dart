@@ -51,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<QueryDocumentSnapshot> _docs = [];
   bool _isLoading = true;
   StreamSubscription<QuerySnapshot>? _subscription;
+  final TextEditingController _searchController = TextEditingController();
 
   // ════════════════════════════════════════════════════════════════════════
   //  LIFECYCLE
@@ -85,11 +86,6 @@ void initState() {
     );
   }
 
-  @override
-  void dispose() {
-    _subscription?.cancel();
-    super.dispose();
-  }
 
   // ════════════════════════════════════════════════════════════════════════
   //  HELPERS
@@ -156,12 +152,18 @@ void initState() {
     return Scaffold(
       backgroundColor: AppColors.background(context),
       body: SafeArea(
-        child: _isLoading
-            ? _loadingState()
-            : _docs.isEmpty
-                ? _emptyState()
-                : _contentView(),
-      ),
+  child: Stack(
+    children: [
+      _isLoading
+          ? _loadingState()
+          : _docs.isEmpty
+              ? _emptyState()
+              : _contentView(),
+
+      // Floating dropdown layer
+    ],
+  ),
+),
     );
   }
 
@@ -266,10 +268,9 @@ void initState() {
       ],
     );
   }
-
 Widget _searchBar() {
   return ExploreSearchBar(
-    controller: TextEditingController(),
+    controller: _searchController,
     includeApartments: true,
     onCitySelected: (city) {
       Navigator.push(
@@ -298,7 +299,6 @@ Widget _searchBar() {
           builder: (_) => const SearchFilterScreen(),
         ),
       );
-
       if (filters != null && mounted) {
         Navigator.push(
           context,
@@ -308,6 +308,7 @@ Widget _searchBar() {
         );
       }
     },
+    // onSuggestionsChanged is gone — no longer needed
   );
 }
 
@@ -343,7 +344,7 @@ Widget _searchBar() {
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: _docs.length,
+        itemCount: _docs.length.clamp(0, 20),
         itemBuilder: (_, i) => _propertyCardHorizontal(_docs[i]),
       ),
     );

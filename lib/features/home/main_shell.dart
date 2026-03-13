@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+
 import 'home_screen.dart';
-import '../profile/profile_screen.dart';
 import 'explore_screen.dart';
+import '../profile/profile_screen.dart';
+import '../../widgets/main_bottom_nav.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -11,6 +13,7 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
+
   int index = 0;
 
   final List<Widget> pages = const [
@@ -21,26 +24,26 @@ class _MainShellState extends State<MainShell> {
     ProfileScreen(),
   ];
 
+  void _onTabTapped(int i) {
+    setState(() {
+      index = i;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+
+      // ── Keep pages alive when switching tabs ──
       body: IndexedStack(
         index: index,
         children: pages,
       ),
 
-      bottomNavigationBar: BottomNavigationBar(
+      // ── Reusable bottom navigation widget ──
+      bottomNavigationBar: MainBottomNav(
         currentIndex: index,
-        onTap: (i) => setState(() => index = i),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.orange,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: "Explore"),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: "Chat"),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: "Saved"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-        ],
+        onTap: _onTabTapped,
       ),
     );
   }

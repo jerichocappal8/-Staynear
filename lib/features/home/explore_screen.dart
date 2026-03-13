@@ -17,13 +17,12 @@ import '../../core/location_service.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 //  TOP-LEVEL DATA  (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
-
 const _kCategories = [
   _Category(label: 'Boarding House', icon: Icons.home_work_rounded),
-  _Category(label: 'Apartment',      icon: Icons.apartment_rounded),
-  _Category(label: 'Dorm',           icon: Icons.school_rounded),
-  _Category(label: 'Studio',         icon: Icons.single_bed_rounded),
-  _Category(label: 'Condo',          icon: Icons.location_city_rounded),
+  _Category(label: 'Apartment', icon: Icons.apartment_rounded),
+  _Category(label: 'Whole House', icon: Icons.house_rounded),
+  _Category(label: 'Studio', icon: Icons.single_bed_rounded),
+  _Category(label: 'Condo Unit', icon: Icons.location_city_rounded),
 ];
 
 const _kLocations = [
@@ -114,7 +113,7 @@ void initState() {
         .collection('properties')
         .where('isActive', isEqualTo: true)
         .orderBy('createdAt', descending: true)
-        .limit(6)
+        .limit(10)
         .snapshots()
         .listen(
       (snap) {
@@ -141,7 +140,7 @@ void initState() {
       final counts = <String, int>{};
 
       for (final doc in snap.docs) {
-        String city = (doc.data()['city'] as String?) ?? '';
+        String city = (doc.data()['location'] as String?) ?? '';
         city = city.trim().toLowerCase();
 
         if (city.contains('urdaneta'))       city = 'Urdaneta City';
@@ -234,6 +233,7 @@ void initState() {
                 controller:     _searchCtrl,
                 onCitySelected: _onCitySelected,
                 onFilterTap:    _openFilters,
+                includeApartments: true,
               ),
 
               const SizedBox(height: 28),
@@ -479,71 +479,56 @@ class _SectionTitle extends StatelessWidget {
 //  CATEGORY CHIPS  (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _CategoryChips extends StatefulWidget {
-  final List<_Category>       categories;
+class _CategoryChips extends StatelessWidget {
+  final List<_Category> categories;
   final void Function(String) onTap;
-  const _CategoryChips({required this.categories, required this.onTap});
 
-  @override
-  State<_CategoryChips> createState() => _CategoryChipsState();
-}
-
-class _CategoryChipsState extends State<_CategoryChips> {
-  String? _selected;
+  const _CategoryChips({
+    required this.categories,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 50,
       child: ListView.separated(
-        scrollDirection:  Axis.horizontal,
-        physics:          const BouncingScrollPhysics(),
-        itemCount:        widget.categories.length,
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: categories.length,
         separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (_, i) {
-          final cat        = widget.categories[i];
-          final isSelected = _selected == cat.label;
+          final cat = categories[i];
 
           return GestureDetector(
-            onTap: () {
-              setState(() => _selected = cat.label);
-              widget.onTap(cat.label);
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve:    Curves.easeOutCubic,
-              padding:  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            onTap: () => onTap(cat.label),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.primaryOrange
-                    : AppColors.card(context),
+                color: AppColors.card(context),
                 borderRadius: BorderRadius.circular(25),
                 border: Border.all(
-                    color: isSelected
-                        ? AppColors.primaryOrange
-                        : AppColors.border,
-                    width: 1.5),
-                boxShadow: isSelected
-                    ? [BoxShadow(
-                        color:      AppColors.primaryOrange.withOpacity(.30),
-                        blurRadius: 12,
-                        offset:     const Offset(0, 4))]
-                    : [],
+                  color: AppColors.border,
+                  width: 1.5,
+                ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(cat.icon,
-                      size:  16,
-                      color: isSelected ? AppColors.cardWhite : AppColors.textMid),
+                  Icon(
+                    cat.icon,
+                    size: 16,
+                    color: AppColors.textMid,
+                  ),
                   const SizedBox(width: 7),
-                  Text(cat.label,
-                      style: TextStyle(
-                          fontSize:   13,
-                          fontWeight: FontWeight.w700,
-                          color: isSelected
-                              ? AppColors.cardWhite
-                              : AppColors.textMid)),
+                  Text(
+                    cat.label,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textMid,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -761,9 +746,9 @@ class _NewListingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final d        = doc.data() as Map<String, dynamic>;
-    final name     = (d['name']          ?? '') as String;
-    final location = (d['city']          ?? '') as String;
-    final category = (d['category']      ?? '') as String;
+    final name     = (d['name'] ?? '') as String;
+    final location = (d['location'] ?? '') as String;
+    final category = (d['category'] ?? '') as String;
     final minPrice = d['minPrice'];
     final coverUrl = (d['coverImageUrl'] ?? '') as String;
     final rating   = d['rating'];
