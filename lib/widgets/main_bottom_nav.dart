@@ -2,15 +2,15 @@
 //
 // Design system:
 // ┌──────────────────────────────────────────────────────────────────────┐
-// │  Floating pill container sits above the scaffold content.           │
-// │  Active tab renders:  filled orange pill + scaled icon + label      │
-// │  Inactive tab renders: icon only (label hidden)                     │
+// │  Floating pill container sits above the scaffold content.            │
+// │  Active tab renders:  filled orange pill + scaled icon + label       │
+// │  Inactive tab renders: icon only (label hidden)                      │
 // │                                                                      │
 // │  Animations                                                          │
-// │  • AnimatedContainer — pill width expands/contracts                 │
-// │  • AnimatedScale     — icon pops up on selection                    │
-// │  • AnimatedOpacity   — label fades in/out                           │
-// │  • AnimatedSlide     — indicator slides across tabs                 │
+// │  • AnimatedContainer — pill width expands/contracts                  │
+// │  • AnimatedScale     — icon pops up on selection                     │
+// │  • AnimatedOpacity   — label fades in/out                            │
+// │  • AnimatedSlide     — indicator slides across tabs                  │
 // └──────────────────────────────────────────────────────────────────────┘
 
 import 'package:flutter/material.dart';

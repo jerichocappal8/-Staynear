@@ -145,34 +145,44 @@ class _TenantAvatarHeader extends StatelessWidget {
   const _TenantAvatarHeader(
       {required this.name, required this.occupancyData});
 
-  String _statusLabel(dynamic checkOut) {
-    if (checkOut == null) return "Occupied";
-    DateTime end;
-    if (checkOut is Timestamp) {
-      end = checkOut.toDate();
-    } else {
-      return "Occupied";
-    }
+String _statusLabel(Map<String, dynamic> d) {
+  if (d['status'] == 'cancelled') return "Cancelled";
+
+  final checkOut = d['checkOut'];
+
+  if (checkOut == null) return "Occupied";
+
+  if (checkOut is Timestamp) {
+    final end = checkOut.toDate();
     final now = DateTime.now();
+
     if (end.isBefore(now)) return "Completed";
     if (end.difference(now).inDays <= 30) return "Leaving Soon";
-    return "Occupied";
   }
+
+  return "Occupied";
+}
 
   @override
   Widget build(BuildContext context) {
-    final status = _statusLabel(occupancyData['checkOut']);
+    final status = _statusLabel(occupancyData);
     Color statusColor;
     switch (status) {
-      case "Leaving Soon":
-        statusColor = AppColors.primaryOrange;
-        break;
-      case "Completed":
-        statusColor = AppColors.textMid;
-        break;
-      default:
-        statusColor = const Color(0xFF22C55E);
-    }
+  case "Cancelled":
+    statusColor = AppColors.danger;
+    break;
+
+  case "Leaving Soon":
+    statusColor = AppColors.primaryOrange;
+    break;
+
+  case "Completed":
+    statusColor = AppColors.textMid;
+    break;
+
+  default:
+    statusColor = const Color(0xFF22C55E);
+}
 
     return Container(
       padding: const EdgeInsets.all(20),

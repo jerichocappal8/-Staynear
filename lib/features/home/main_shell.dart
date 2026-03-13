@@ -4,6 +4,7 @@ import 'home_screen.dart';
 import 'explore_screen.dart';
 import '../profile/profile_screen.dart';
 import '../../widgets/main_bottom_nav.dart';
+import '../booking/bookings_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -20,7 +21,7 @@ class _MainShellState extends State<MainShell> {
     HomeScreen(),
     ExploreScreen(),
     Center(child: Text("Chat")),
-    Center(child: Text("Saved")),
+    BookingsScreen(),
     ProfileScreen(),
   ];
 

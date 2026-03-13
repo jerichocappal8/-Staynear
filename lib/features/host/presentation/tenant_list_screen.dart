@@ -17,9 +17,7 @@ class TenantListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final occupied = occupancyDocs
-        .where((d) => (d.data() as Map)['status'] == 'occupied')
-        .toList();
+final tenants = occupancyDocs;
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
@@ -57,20 +55,20 @@ class TenantListScreen extends StatelessWidget {
           child: Divider(height: 1, color: AppColors.border.withOpacity(0.4)),
         ),
       ),
-      body: occupied.isEmpty
+      body: tenants.isEmpty
           ? _EmptyTenants()
           : ListView.builder(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-              itemCount: occupied.length,
+              itemCount: tenants.length,
               itemBuilder: (context, index) {
                 return _TenantCard(
-                  doc: occupied[index],
+                  doc: tenants[index],
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => TenantDetailsScreen(
-                          occupancyDoc: occupied[index],
+                          occupancyDoc: tenants[index],
                         ),
                       ),
                     );
@@ -117,19 +115,23 @@ class _TenantCard extends StatelessWidget {
     return ((end.difference(now).inDays) / 30).ceil();
   }
 
-  String _tenantStatus(dynamic checkOut) {
-    if (checkOut == null) return "Occupied";
-    DateTime end;
-    if (checkOut is Timestamp) {
-      end = checkOut.toDate();
-    } else {
-      return "Occupied";
-    }
+String _tenantStatus(Map<String, dynamic> d) {
+  if (d['status'] == 'cancelled') return "Cancelled";
+
+  final checkOut = d['checkOut'];
+
+  if (checkOut == null) return "Occupied";
+
+  if (checkOut is Timestamp) {
+    final end = checkOut.toDate();
     final now = DateTime.now();
+
     if (end.isBefore(now)) return "Completed";
     if (end.difference(now).inDays <= 30) return "Leaving Soon";
-    return "Occupied";
   }
+
+  return "Occupied";
+}
 
   @override
   Widget build(BuildContext context) {
@@ -138,24 +140,31 @@ class _TenantCard extends StatelessWidget {
     final checkIn = _fmt(d['checkIn']);
     final checkOut = _fmt(d['checkOut']);
     final bookingId = d['bookingId'] as String?;
-    final status = _tenantStatus(d['checkOut']);
+    final status = _tenantStatus(d);
     final monthsLeft = _monthsRemaining(d['checkOut']);
 
     Color statusColor;
     IconData statusIcon;
-    switch (status) {
-      case "Leaving Soon":
-        statusColor = AppColors.primaryOrange;
-        statusIcon = Icons.schedule_rounded;
-        break;
-      case "Completed":
-        statusColor = AppColors.textMid;
-        statusIcon = Icons.check_circle_rounded;
-        break;
-      default:
-        statusColor = const Color(0xFF22C55E);
-        statusIcon = Icons.person_rounded;
-    }
+switch (status) {
+  case "Cancelled":
+    statusColor = AppColors.danger;
+    statusIcon = Icons.cancel_rounded;
+    break;
+
+  case "Leaving Soon":
+    statusColor = AppColors.primaryOrange;
+    statusIcon = Icons.schedule_rounded;
+    break;
+
+  case "Completed":
+    statusColor = AppColors.textMid;
+    statusIcon = Icons.check_circle_rounded;
+    break;
+
+  default:
+    statusColor = const Color(0xFF22C55E);
+    statusIcon = Icons.person_rounded;
+}
 
     return GestureDetector(
       onTap: onTap,
