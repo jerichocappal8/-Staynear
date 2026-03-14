@@ -8,7 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../profile/profile_screen.dart';
 import 'all_apartments_screen.dart';
 import 'active_apartments_screen.dart';
 import 'add_apartment_screen.dart';
@@ -16,6 +15,8 @@ import 'host_bottom_nav.dart';
 import 'package:staynear/core/app_colors.dart';
 import 'revenue_page.dart';
 import '../chat/chat_list_host_screen.dart';
+import 'host_profile_screen.dart';
+import '../../core/animations/slide_page_route.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 //  SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,134 +102,145 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
         .collection('properties')
         .where('ownerId', isEqualTo: uid);
 
-    return Scaffold(
-  backgroundColor: AppColors.background(context),
+return GestureDetector(
+  onHorizontalDragEnd: (details) {
 
-  body: StreamBuilder<QuerySnapshot>(
-        stream: propertiesRef.snapshots(),
-        builder: (context, snapshot) {
-
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(
-                  color: AppColors.primaryOrange, strokeWidth: 2.5),
-            );
-          }
-
-          if (!snapshot.hasData) {
-            return const Center(child: Text('No data'));
-          }
-
-          // ── original logic (unchanged) ────────────────────────────────
-          final docs   = snapshot.data!.docs;
-          final total  = docs.length;
-          final active = docs
-              .where((d) => (d['isActive'] ?? false) == true)
-              .length;
-          final recent = docs.take(3).toList();
-
-          // ignore: unused_local_variable
-          final viewsTotal     = 0;
-          final inquiriesTotal = 0;
-          // ─────────────────────────────────────────────────────────────
-
-          return CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-
-              // ── hero header ──────────────────────────────────────────
-              SliverToBoxAdapter(
-                child: _s(0, _HeroHeader(
-                  total:  total,
-                  active: active,
-                )),
-              ),
-
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-
-                    const SizedBox(height: 2),
-
-                    // ── stat cards grid ────────────────────────────────
-                    _s(1, _buildStatsGrid(
-                      context,
-                      total:           total,
-                      active:          active,
-                      inquiriesTotal:  inquiriesTotal,
-                    )),
-
-                    const SizedBox(height: 32),
-
-                    // ── recent listings header ─────────────────────────
-                    _s(2, _SectionHeader(
-                      title:  'Recent Listings',
-                      action: 'See all',
-                      onAction: () {},
-                    )),
-
-                    const SizedBox(height: 14),
-
-                    // ── recent listings body ───────────────────────────
-                    _s(3, _RecentListings(docs: recent)),
-
-                    const SizedBox(height: 32),
-
-                    // ── add apartment CTA ─────────────────────────────
-                    const SizedBox(height: 24),
-                  ]),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-
-      // ── bottom nav (unchanged) ──────────────────────────────────────────
-      bottomNavigationBar: HostBottomNav(
-  currentIndex: 0,
-  onTap: (index) {
-    if (index == 0) return;
-
-    if (index == 1) {
-      Navigator.push(
+    // swipe LEFT → go to Messages
+    if (details.primaryVelocity! < 0) {
+      Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => ChatListHostScreen(
+        SlidePageRoute(
+          page: ChatListHostScreen(
             hostId: FirebaseAuth.instance.currentUser!.uid,
           ),
         ),
       );
     }
 
-    if (index == 2) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ProfileScreen(),
-        ),
-      );
-    }
   },
-),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
 
-floatingActionButton: Padding(
-  padding: const EdgeInsets.only(bottom: 5),
-  child: SizedBox(
-    width: MediaQuery.of(context).size.width - 40,
-    child: _AddApartmentButton(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const AddApartmentScreen(),
+  child: Scaffold(
+    backgroundColor: AppColors.background(context),
+
+    body: StreamBuilder<QuerySnapshot>(
+      stream: propertiesRef.snapshots(),
+      builder: (context, snapshot) {
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+                color: AppColors.primaryOrange, strokeWidth: 2.5),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return const Center(child: Text('No data'));
+        }
+
+        final docs   = snapshot.data!.docs;
+        final total  = docs.length;
+        final active = docs
+            .where((d) => (d['isActive'] ?? false) == true)
+            .length;
+        final recent = docs.take(3).toList();
+
+        final viewsTotal     = 0;
+        final inquiriesTotal = 0;
+
+        return CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+
+            SliverToBoxAdapter(
+              child: _s(0, _HeroHeader(
+                total:  total,
+                active: active,
+              )),
+            ),
+
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+
+                  const SizedBox(height: 2),
+
+                  _s(1, _buildStatsGrid(
+                    context,
+                    total:           total,
+                    active:          active,
+                    inquiriesTotal:  inquiriesTotal,
+                  )),
+
+                  const SizedBox(height: 32),
+
+                  _s(2, _SectionHeader(
+                    title:  'Recent Listings',
+                    action: 'See all',
+                    onAction: () {},
+                  )),
+
+                  const SizedBox(height: 14),
+
+                  _s(3, _RecentListings(docs: recent)),
+
+                  const SizedBox(height: 32),
+
+                  const SizedBox(height: 24),
+                ]),
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+
+    bottomNavigationBar: HostBottomNav(
+      currentIndex: 0,
+      onTap: (index) {
+
+        if (index == 0) return;
+
+        if (index == 1) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ChatListHostScreen(
+                hostId: FirebaseAuth.instance.currentUser!.uid,
+              ),
+            ),
+          );
+        }
+
+        if (index == 2) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const HostProfileScreen(),
+            ),
+          );
+        }
+      },
+    ),
+
+    floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+
+    floatingActionButton: Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: SizedBox(
+        width: MediaQuery.of(context).size.width - 40,
+        child: _AddApartmentButton(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const AddApartmentScreen(),
+            ),
+          ),
         ),
       ),
     ),
   ),
-),
-  );
+);
   }
 
   // ─────────────────────────────────────────────────────────────────────────

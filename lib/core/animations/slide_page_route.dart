@@ -2,23 +2,32 @@ import 'package:flutter/material.dart';
 
 class SlidePageRoute extends PageRouteBuilder {
   final Widget page;
+  final bool fromRight;
 
-  SlidePageRoute({required this.page})
-      : super(
-          transitionDuration: const Duration(milliseconds: 350),
-          reverseTransitionDuration: const Duration(milliseconds: 300),
+  SlidePageRoute({
+    required this.page,
+    this.fromRight = true,
+  }) : super(
           pageBuilder: (context, animation, secondaryAnimation) => page,
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration: const Duration(milliseconds: 300),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            const begin = Offset(1.0, 0.0); // slide from right
+
+            final beginOffset = fromRight
+                ? const Offset(1.0, 0.0)
+                : const Offset(-1.0, 0.0);
+
             const end = Offset.zero;
 
-            final tween = Tween(begin: begin, end: end)
-                .chain(CurveTween(curve: Curves.easeOutCubic));
-
-            final offsetAnimation = animation.drive(tween);
+            final tween = Tween(
+              begin: beginOffset,
+              end: end,
+            ).chain(
+              CurveTween(curve: Curves.easeOutCubic),
+            );
 
             return SlideTransition(
-              position: offsetAnimation,
+              position: animation.drive(tween),
               child: child,
             );
           },

@@ -305,6 +305,7 @@ final booking = BookingModel(
   roomName: widget.room.roomType,
 
   userId: user!.uid,
+  hostId: widget.apartment.ownerId, 
   guestName: "${guestInfo!.firstName} ${guestInfo!.lastName}",
   guestEmail: guestInfo!.email,
 
@@ -335,7 +336,29 @@ final booking = BookingModel(
   final bookingRef = await FirebaseFirestore.instance
       .collection("bookings")
       .add(booking.toMap());
+// ── attach booking to chat conversation ──
+await FirebaseFirestore.instance
+    .collection("conversations")
+    .where("propertyId", isEqualTo: widget.apartment.id)
+    .where("userId", isEqualTo: user.uid)
+    .limit(1)
+    .get()
+    .then((snapshot) async {
 
+  if (snapshot.docs.isNotEmpty) {
+
+    final conversationId = snapshot.docs.first.id;
+
+    await FirebaseFirestore.instance
+        .collection("conversations")
+        .doc(conversationId)
+        .update({
+      "bookingId": bookingRef.id,
+    });
+
+  }
+
+});
   Navigator.of(context).push(
   PageRouteBuilder(
     transitionDuration: const Duration(milliseconds: 250),

@@ -208,6 +208,7 @@ final clientSecret = result.data['clientSecret'];
           paymentIntentClientSecret: clientSecret,
           merchantDisplayName: 'StayNear',
           style: ThemeMode.dark,
+          // ── Stripe PaymentSheet colors are NOT modified per rules ─────
           appearance: PaymentSheetAppearance(
             colors: PaymentSheetAppearanceColors(
               primary: AppColors.primaryOrange,
@@ -340,7 +341,7 @@ Future<void> _updateFirestore(double amountPaid) async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.darkBackground,
+      backgroundColor: AppColors.background(context), // was: AppColors.darkBackground
       body: _dataLoading
           ? const _LoadingBody()
           : _dataError != null
@@ -372,12 +373,12 @@ Future<void> _updateFirestore(double amountPaid) async {
                 // App bar
                 SliverAppBar(
                   pinned: true,
-                  backgroundColor: AppColors.darkBackground,
+                  backgroundColor: AppColors.background(context), // was: AppColors.darkBackground
                   leading: _NavBackButton(),
-                  title: const Text(
+                  title: Text(
                     'Advance Payment',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: AppColors.text(context), // was: Colors.white
                       fontWeight: FontWeight.w700,
                       fontSize: 17,
                     ),
@@ -432,6 +433,7 @@ Future<void> _updateFirestore(double amountPaid) async {
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  PAYMENT HEADER CARD
+//  Colors.white kept — all text lives inside an orange gradient container
 // ─────────────────────────────────────────────────────────────────────────────
 
 class PaymentHeaderCard extends StatelessWidget {
@@ -486,7 +488,7 @@ class PaymentHeaderCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: Colors.white, // kept: inside orange gradient card
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -497,7 +499,7 @@ class PaymentHeaderCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.w900,
-                    color: Colors.white,
+                    color: Colors.white, // kept: inside orange gradient card
                     letterSpacing: -1.0,
                     height: 1.0,
                   ),
@@ -507,7 +509,7 @@ class PaymentHeaderCard extends StatelessWidget {
                   'per month',
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.white.withOpacity(0.80),
+                    color: Colors.white.withOpacity(0.80), // kept: inside orange gradient card
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -531,7 +533,7 @@ class PaymentHeaderCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.w900,
-                    color: Colors.white,
+                    color: Colors.white, // kept: inside orange gradient card
                     height: 1.0,
                   ),
                 ),
@@ -541,7 +543,7 @@ class PaymentHeaderCard extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.white.withOpacity(0.85),
+                    color: Colors.white.withOpacity(0.85), // kept: inside orange gradient card
                     fontWeight: FontWeight.w600,
                     height: 1.3,
                   ),
@@ -667,12 +669,12 @@ class _OptionTileState extends State<_OptionTile>
           decoration: BoxDecoration(
             color: isSelected
                 ? AppColors.primaryOrange.withOpacity(0.12)
-                : AppColors.darkCardSoft.withOpacity(0.5),
+                : AppColors.cardSoft(context).withOpacity(0.5), // was: AppColors.darkCardSoft.withOpacity(0.5)
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isSelected
                   ? AppColors.primaryOrange
-                  : AppColors.darkCardSoft,
+                  : AppColors.cardSoft(context), // was: AppColors.darkCardSoft
               width: isSelected ? 1.5 : 1,
             ),
           ),
@@ -697,7 +699,7 @@ class _OptionTileState extends State<_OptionTile>
                 ),
                 child: isSelected
                     ? const Icon(Icons.check_rounded,
-                        size: 14, color: Colors.white)
+                        size: 14, color: Colors.white) // kept: icon on filled orange circle
                     : null,
               ),
               const SizedBox(width: 14),
@@ -718,7 +720,7 @@ class _OptionTileState extends State<_OptionTile>
         fontWeight: FontWeight.w700,
         color: isSelected
             ? AppColors.primaryOrange
-            : Colors.white,
+            : AppColors.text(context), // was: Colors.white
       ),
     ),
     if (opt.isFull) ...[
@@ -765,7 +767,7 @@ class _OptionTileState extends State<_OptionTile>
                   fontWeight: FontWeight.w800,
                   color: isSelected
                       ? AppColors.primaryOrange
-                      : Colors.white,
+                      : AppColors.text(context), // was: Colors.white
                   letterSpacing: -0.3,
                 ),
               ),
@@ -812,7 +814,7 @@ class PaymentSummaryCard extends StatelessWidget {
           _SummaryRow(
             label: 'Total Stay Cost',
             value: fmtPrice(stayTotal),
-            valueColor: Colors.white,
+            valueColor: AppColors.text(context), // was: Colors.white
           ),
           const SizedBox(height: 10),
           _SummaryRow(
@@ -829,7 +831,7 @@ class PaymentSummaryCard extends StatelessWidget {
           ),
 
           const SizedBox(height: 14),
-          const Divider(color: AppColors.darkCardSoft, height: 1),
+          Divider(color: AppColors.cardSoft(context), height: 1), // was: const Divider(color: AppColors.darkCardSoft)
           const SizedBox(height: 14),
 
           _SummaryRow(
@@ -837,7 +839,7 @@ class PaymentSummaryCard extends StatelessWidget {
             value: fmtPrice(afterPayment),
             valueColor: afterPayment <= 0
                 ? const Color(0xFF34D399)
-                : Colors.white,
+                : AppColors.text(context), // was: Colors.white
             bold: true,
           ),
 
@@ -940,9 +942,9 @@ class PaymentActionButton extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(
           20, 16, 20, MediaQuery.of(context).padding.bottom + 16),
       decoration: BoxDecoration(
-        color: AppColors.darkNavbar,
-        border: const Border(
-          top: BorderSide(color: AppColors.darkCardSoft, width: 1),
+        color: AppColors.card(context), // was: AppColors.darkNavbar
+        border: Border(
+          top: BorderSide(color: AppColors.cardSoft(context), width: 1), // was: AppColors.darkCardSoft
         ),
       ),
       child: GestureDetector(
@@ -958,7 +960,7 @@ class PaymentActionButton extends StatelessWidget {
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                   ),
-            color: paying ? AppColors.darkCardSoft : null,
+            color: paying ? AppColors.cardSoft(context) : null, // was: AppColors.darkCardSoft
             borderRadius: BorderRadius.circular(18),
             boxShadow: paying
                 ? []
@@ -984,14 +986,14 @@ class PaymentActionButton extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(Icons.lock_rounded,
-                          size: 16, color: Colors.white),
+                          size: 16, color: Colors.white), // kept: inside gradient button
                       const SizedBox(width: 8),
                       Text(
                         'Pay ${fmtPrice(amount)}',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
-                          color: Colors.white,
+                          color: Colors.white, // kept: inside gradient button
                           letterSpacing: -0.2,
                         ),
                       ),
@@ -1018,9 +1020,9 @@ class _DarkCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.darkCard,
+        color: AppColors.card(context), // was: AppColors.darkCard
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.darkCardSoft, width: 1),
+        border: Border.all(color: AppColors.cardSoft(context), width: 1), // was: AppColors.darkCardSoft
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.25),
@@ -1064,10 +1066,10 @@ class _CardTitle extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color: Colors.white,
+                color: AppColors.text(context), // was: Colors.white
                 letterSpacing: -0.1,
               ),
             ),
@@ -1117,13 +1119,13 @@ class _NavBackButton extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: AppColors.darkCard,
+            color: AppColors.card(context), // was: AppColors.darkCard
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.darkCardSoft),
+            border: Border.all(color: AppColors.cardSoft(context)), // was: AppColors.darkCardSoft
           ),
-          child: const Icon(
+          child: Icon(
             Icons.arrow_back_ios_new_rounded,
-            color: Colors.white,
+            color: AppColors.text(context), // was: Colors.white
             size: 16,
           ),
         ),
@@ -1148,7 +1150,7 @@ class _SuccessDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: AppColors.darkCard,
+      backgroundColor: AppColors.card(context), // was: AppColors.darkCard
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
         padding: const EdgeInsets.all(28),
@@ -1174,15 +1176,15 @@ class _SuccessDialog extends StatelessWidget {
                 ],
               ),
               child: const Icon(Icons.check_rounded,
-                  color: Colors.white, size: 36),
+                  color: Colors.white, size: 36), // kept: icon inside gradient circle
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Payment Successful!',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: Colors.white,
+                color: AppColors.text(context), // was: Colors.white
                 letterSpacing: -0.3,
               ),
             ),
@@ -1214,7 +1216,7 @@ class _SuccessDialog extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: Colors.white, // kept: inside gradient button
                     ),
                   ),
                 ),
@@ -1260,12 +1262,12 @@ class _ErrorBody extends StatelessWidget {
             const Icon(Icons.error_outline_rounded,
                 size: 48, color: AppColors.danger),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Failed to load booking',
               style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white),
+                  color: AppColors.text(context)), // was: Colors.white
             ),
             const SizedBox(height: 8),
             Text(error,

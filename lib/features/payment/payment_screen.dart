@@ -165,6 +165,7 @@ await _startStripePayment(amountToCharge);
         'roomId': data['roomId'],
         'roomType': data['roomName'],
         'checkIn': data['checkIn'],
+        'hostId': data['hostId'],
         'checkOut': data['checkOut'],
         'pricingMode': data['pricingMode'],
         'guestName': data['guestName'],

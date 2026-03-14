@@ -21,11 +21,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
-import '../../core/animations/slide_page_route.dart';
-import '../host/host_dashboard_screen.dart';
-import '../host/host_profile_screen.dart';
-import '../chat/chat_list_host_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  TAB DATA MODEL
 // ─────────────────────────────────────────────────────────────────────────────
@@ -97,39 +93,12 @@ class _HostBottomNavState extends State<HostBottomNav>
     }
   }
 
-  void _handleTap(int index) {
+void _handleTap(int index) {
   if (index == widget.currentIndex) return;
 
   HapticFeedback.lightImpact();
 
-  if (index == 0) {
-    Navigator.pushReplacement(
-      context,
-      SlidePageRoute(
-        page: const HostDashboardScreen(),
-      ),
-    );
-  }
-
-if (index == 1) {
-  Navigator.pushReplacement(
-    context,
-    SlidePageRoute(
-      page: ChatListHostScreen(
-        hostId: FirebaseAuth.instance.currentUser!.uid,
-      ),
-    ),
-  );
-}
-
-  if (index == 2) {
-    Navigator.pushReplacement(
-      context,
-      SlidePageRoute(
-        page: const HostProfileScreen(),
-      ),
-    );
-  }
+  widget.onTap(index);
 }
 
   // ════════════════════════════════════════════════════════════════════════

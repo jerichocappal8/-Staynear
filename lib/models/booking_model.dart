@@ -9,6 +9,7 @@ class BookingModel {
   final String roomName;
 
   final String userId;
+  final String hostId;
 
   final String guestName;
   final String guestEmail;
@@ -46,6 +47,7 @@ class BookingModel {
     required this.roomId,
     required this.roomName,
     required this.userId,
+      required this.hostId,
     required this.guestName,
     required this.guestEmail,
     required this.checkIn,
@@ -75,6 +77,7 @@ return {
   "roomName": roomName,
 
   "userId": userId,
+  "hostId": hostId,
       "guestName": guestName,
       "guestEmail": guestEmail,
       "checkIn": Timestamp.fromDate(checkIn),
