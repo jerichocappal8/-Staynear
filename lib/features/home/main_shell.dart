@@ -5,6 +5,7 @@ import 'explore_screen.dart';
 import '../profile/profile_screen.dart';
 import '../../widgets/main_bottom_nav.dart';
 import '../booking/bookings_screen.dart';
+import '../chat/chat_list_user_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -17,13 +18,13 @@ class _MainShellState extends State<MainShell> {
 
   int index = 0;
 
-  final List<Widget> pages = const [
-    HomeScreen(),
-    ExploreScreen(),
-    Center(child: Text("Chat")),
-    BookingsScreen(),
-    ProfileScreen(),
-  ];
+final List<Widget> pages = const [
+  HomeScreen(),
+  ExploreScreen(),
+  ChatListUserScreen(),
+  BookingsScreen(),
+  ProfileScreen(),
+];
 
   void _onTabTapped(int i) {
     setState(() {

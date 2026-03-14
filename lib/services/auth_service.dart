@@ -7,7 +7,7 @@ class AuthService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   // EMAIL REGISTER
-  Future<User?> register(String email, String password, String phone) async {
+  Future<User?> register(String email, String password, String phone, String name) async {
     final existingPhone = await _db
         .collection("users")
         .where("phone", isEqualTo: phone)
@@ -26,6 +26,7 @@ class AuthService {
     await _db.collection("users").doc(userCred.user!.uid).set({
       "email": email,
       "phone": phone,
+      "name": name,
       "provider": "email",
       "createdAt": FieldValue.serverTimestamp(),
     });

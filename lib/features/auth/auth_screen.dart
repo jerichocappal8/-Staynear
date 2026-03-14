@@ -28,6 +28,7 @@ class _AuthScreenState extends State<AuthScreen>
   final emailCtrl = TextEditingController();
   final passCtrl  = TextEditingController();
   final phoneCtrl = TextEditingController();
+  final nameCtrl = TextEditingController();
 
   final auth = AuthService();
 
@@ -149,14 +150,23 @@ late Animation<double> _fadeAnim;
                         ),
 
                         if (!isLogin) ...[
-                          const SizedBox(height: 14),
-                          _AuthField(
-                            hint:        'Phone number',
-                            controller:  phoneCtrl,
-                            icon:        Icons.phone_outlined,
-                            keyboardType: TextInputType.phone,
-                          ),
-                        ],
+  const SizedBox(height: 14),
+
+  _AuthField(
+    hint: 'Full name',
+    controller: nameCtrl,
+    icon: Icons.person_outline,
+  ),
+
+  const SizedBox(height: 14),
+
+  _AuthField(
+    hint: 'Phone number',
+    controller: phoneCtrl,
+    icon: Icons.phone_outlined,
+    keyboardType: TextInputType.phone,
+  ),
+],
 
                         if (isLogin) ...[
                           const SizedBox(height: 8),
@@ -316,6 +326,7 @@ late Animation<double> _fadeAnim;
           emailCtrl.text.trim(),
           passCtrl.text.trim(),
           phoneCtrl.text.trim(),
+          nameCtrl.text.trim(),
         );
 
         if (registerUser != null) {

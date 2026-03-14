@@ -32,6 +32,8 @@ import '../../models/rental_terms.dart';
 import '../../models/nearby_facility.dart';
 import '../../models/testimonial.dart';
 import 'dart:async';
+import '../chat/chat_service.dart';
+import '../chat/chat_room_screen.dart';
 
 // ── palette helpers (unchanged values) ────────────────────────────────────────
 const Color _green = Color(0xFF22C55E);
@@ -281,29 +283,42 @@ class _ApartmentDetailPageState extends State<ApartmentDetailPage>
                         const SizedBox(height: 20),
 
                         // ── 2 · Host card ─────────────────────────────
-                        _s(2, Padding(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 16),
-                          child: _HostCard(
-                            apt:    apt,
-                            name:   hostName,
-                            photo:  hostPhoto,
-                            onCall: _callHost,
-                            onChat: () {
-                              ScaffoldMessenger.of(context)
-                                  .showSnackBar(SnackBar(
-                                content:
-                                    const Text('Chat feature coming soon!'),
-                                backgroundColor: AppColors.primaryOrange,
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(12)),
-                                margin: const EdgeInsets.all(16),
-                              ));
-                            },
-                          ),
-                        )),
+                        // ── 2 · Host card ─────────────────────────────
+_s(2, Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 16),
+  child: _HostCard(
+    apt: apt,
+    name: hostName,
+    photo: hostPhoto,
+    onCall: _callHost,
+    onChat: () async {
+
+      final chatService = ChatService();
+
+      final conversationId =
+          await chatService.getOrCreateConversation(
+        propertyId: apt.id,
+        propertyName: apt.name,
+        hostId: apt.ownerId,
+      );
+
+      if (!context.mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatRoomScreen(
+            conversationId: conversationId,
+            otherParticipantId: apt.ownerId,
+            otherParticipantName: hostName,
+            otherParticipantPhoto: hostPhoto,
+            propertyName: apt.name,
+          ),
+        ),
+      );
+    },
+  ),
+)),
 
                         const SizedBox(height: 20),
                         _Div(),
@@ -2218,10 +2233,10 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final available = rooms
-        .where((r) =>
-            r.isAvailable && (int.tryParse(r.availableUnits) ?? 0) > 0)
-        .toList();
+    final available = rooms.where((r) {
+  final units = int.tryParse(r.availableUnits) ?? 0;
+  return units > 0;
+}).toList();
 
     RoomOffer? cheapest;
     if (available.isNotEmpty) {

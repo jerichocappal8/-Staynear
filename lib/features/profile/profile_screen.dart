@@ -11,6 +11,8 @@ import 'payment_details_screen.dart';
 import 'faq_screen.dart';
 import '../../core/app_colors.dart';
 import '../auth/auth_screen.dart';
+import '../../widgets/main_bottom_nav.dart';
+import '../../core/animations/slide_page_route.dart';
 
 
 class ProfileScreen extends StatefulWidget {
@@ -84,12 +86,12 @@ Future<void> _logout() async {
     if (!mounted) return;
 
     Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const AuthScreen(isLogin: true),
-      ),
-      (route) => false,
-    );
+  context,
+  SlidePageRoute(
+    page: const AuthScreen(isLogin: true),
+  ),
+  (route) => false,
+);
   }
 }
 
@@ -100,7 +102,7 @@ Future<void> _logout() async {
     if (userData!['isHost'] == true) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const HostDashboardScreen()),
+        SlidePageRoute(page: const HostDashboardScreen()),
       );
       return;
     }
@@ -108,14 +110,14 @@ Future<void> _logout() async {
     if (userData!['hostRequest'] == 'pending') {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const HostStatusScreen()),
+        SlidePageRoute(page: const HostStatusScreen()),
       );
       return;
     }
 
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const HostApplicationScreen()),
+      SlidePageRoute(page: const HostApplicationScreen()),
     );
 
     _loadUser();
@@ -146,8 +148,10 @@ Future<void> _logout() async {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background(context),
-      body: SafeArea(
+  backgroundColor: AppColors.background(context),
+
+
+  body: SafeArea(
         child: ListView(
           children: [
             const SizedBox(height: 28),
@@ -333,7 +337,7 @@ decoration: BoxDecoration(
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => page),
+            SlidePageRoute(page: page),
           );
         },
       ),

@@ -253,31 +253,50 @@ final clientSecret = result.data['clientSecret'];
     }
   }
 
-  Future<void> _updateFirestore(double amountPaid) async {
-    final ref = FirebaseFirestore.instance
-        .collection('bookings')
-        .doc(widget.bookingId);
+Future<void> _updateFirestore(double amountPaid) async {
+  final bookingRef = FirebaseFirestore.instance
+      .collection('bookings')
+      .doc(widget.bookingId);
 
-    await FirebaseFirestore.instance.runTransaction((tx) async {
-      final snap = await tx.get(ref);
-      final current = snap.data()!;
+  final paymentsRef =
+      FirebaseFirestore.instance.collection('payments');
 
-      final prevAmountPaid =
-          ((current['amountPaid'] as num?) ?? 0).toDouble();
-      final prevRemaining =
-          ((current['remainingBalance'] as num?) ?? 0).toDouble();
+  await FirebaseFirestore.instance.runTransaction((tx) async {
 
-      final newAmountPaid = prevAmountPaid + amountPaid;
-      final newRemaining = (prevRemaining - amountPaid).clamp(0.0, double.infinity);
-      final newStatus = newRemaining <= 0 ? 'paid' : 'partial';
+    final snap = await tx.get(bookingRef);
+    final current = snap.data()!;
 
-      tx.update(ref, {
-        'amountPaid': newAmountPaid,
-        'remainingBalance': newRemaining,
-        'paymentStatus': newStatus,
-      });
+    final prevAmountPaid =
+        ((current['amountPaid'] as num?) ?? 0).toDouble();
+    final prevRemaining =
+        ((current['remainingBalance'] as num?) ?? 0).toDouble();
+
+    final newAmountPaid = prevAmountPaid + amountPaid;
+    final newRemaining =
+        (prevRemaining - amountPaid).clamp(0.0, double.infinity);
+
+    final newStatus = newRemaining <= 0 ? 'paid' : 'partial';
+
+    // Update booking
+    tx.update(bookingRef, {
+      'amountPaid': newAmountPaid,
+      'remainingBalance': newRemaining,
+      'paymentStatus': newStatus,
     });
-  }
+
+    // ⭐ THIS IS THE IMPORTANT PART
+    // Create payment record for revenue analytics
+    tx.set(paymentsRef.doc(), {
+      'amount': amountPaid,
+      'bookingId': widget.bookingId,
+      'apartmentName': current['apartmentName'],
+      'method': 'card',
+      'status': 'success',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+  });
+}
 
   // ─────────────────────────────────────────────────────────────────────────
   //  DIALOGS & SNACKS
