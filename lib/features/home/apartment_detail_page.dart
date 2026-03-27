@@ -124,17 +124,28 @@ class _ApartmentDetailPageState extends State<ApartmentDetailPage>
 
   // ── logic (UNCHANGED) ─────────────────────────────────────────────────────
 
-  Future<void> _loadHost(String uid) async {
-    final doc = await FirebaseFirestore.instance
-        .collection('host_requests').doc(uid).get();
-    if (!doc.exists || !mounted) return;
-    final d = doc.data()!;
-    setState(() {
-      hostName  = d['fullName'] ?? 'Host';
-      hostPhoto = d['photo']   ?? '';
-      hostPhone = d['phone']   ?? '';
-    });
-  }
+Future<void> _loadHost(String uid) async {
+
+  final doc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(uid)
+      .get();
+
+  if (!doc.exists || !mounted) return;
+
+  final d = doc.data()!;
+
+  setState(() {
+
+    hostName =
+        '${d['firstName'] ?? ''} ${d['lastName'] ?? ''}'.trim();
+
+    hostPhoto = d['photo'] ?? '';
+
+    hostPhone = d['phone'] ?? '';
+
+  });
+}
 
   Future<void> _callHost() async {
     if (hostPhone.isEmpty) {
@@ -389,11 +400,27 @@ _s(2, Padding(
                         const SizedBox(height: 20),
 
                         // ── 5 · Testimonials ──────────────────────────
-                        if (apt.testimonials.isNotEmpty)
-                          _s(5, _TestimonialsSection(
-                              testimonials: apt.testimonials)),
+                        StreamBuilder<QuerySnapshot>(
+  stream: FirebaseFirestore.instance
+      .collection('reviews')
+      .where('apartmentId', isEqualTo: widget.apartmentId)
+      .snapshots(),
+  builder: (context, reviewSnap) {
+    print("Apartment ID: ${widget.apartmentId}");
+  print("Review docs: ${reviewSnap.data?.docs.length}");
+    if (!reviewSnap.hasData || reviewSnap.data!.docs.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-                        const SizedBox(height: 120),
+final testimonials = reviewSnap.data!.docs.map((doc) {
+  return Testimonial.fromReviewDoc(
+    doc.data() as Map<String, dynamic>,
+  );
+}).toList();
+
+    return _s(5, _TestimonialsSection(testimonials: testimonials));
+  },
+),
                       ],
                     ),
                   ),
@@ -1737,12 +1764,20 @@ class _TestimonialsSection extends StatelessWidget {
   final List<Testimonial> testimonials;
   const _TestimonialsSection({required this.testimonials});
 
+  double get _average {
+    if (testimonials.isEmpty) return 0;
+    return testimonials.map((t) => t.rating).reduce((a, b) => a + b) /
+        testimonials.length;
+  }
+
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+          // ── Header row ────────────────────────────────────────────────
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text('Reviews',
                   style: TextStyle(
@@ -1751,6 +1786,8 @@ class _TestimonialsSection extends StatelessWidget {
                     color:         AppColors.text(context),
                     letterSpacing: -.3,
                   )),
+              const Spacer(),
+              // Average score pill
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 10, vertical: 4),
@@ -1759,19 +1796,30 @@ class _TestimonialsSection extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20)),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.star_rounded,
-                      size: 12, color: AppColors.primaryOrange),
+                      size: 13, color: AppColors.primaryOrange),
                   const SizedBox(width: 4),
                   Text(
-                    '${testimonials.length} review${testimonials.length == 1 ? '' : 's'}',
+                    _average > 0
+                        ? _average.toStringAsFixed(1)
+                        : '—',
                     style: const TextStyle(
                         fontSize:   12,
                         color:      AppColors.primaryOrange,
-                        fontWeight: FontWeight.w600),
+                        fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    '  ·  ${testimonials.length} review'
+                    '${testimonials.length == 1 ? '' : 's'}',
+                    style: const TextStyle(
+                        fontSize:   12,
+                        color:      AppColors.primaryOrange,
+                        fontWeight: FontWeight.w500),
                   ),
                 ]),
               ),
             ],
           ),
+
           const SizedBox(height: 14),
           ...testimonials.map((t) => _TestimonialCard(testimonial: t)),
         ]),
@@ -1789,11 +1837,50 @@ class _TestimonialCard extends StatefulWidget {
 class _TestimonialCardState extends State<_TestimonialCard> {
   bool _expanded = false;
 
+  // ── tiny helpers ──────────────────────────────────────────────────────────
+  static String _fmtDate(DateTime? dt) {
+    if (dt == null) return '';
+    const months = [
+      'Jan','Feb','Mar','Apr','May','Jun',
+      'Jul','Aug','Sep','Oct','Nov','Dec'
+    ];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+  }
+
+  static String _stayDuration(DateTime? i, DateTime? o) {
+    if (i == null || o == null) return '';
+    final nights = o.difference(i).inDays;
+    if (nights <= 0) return '';
+    // Show as months if ≥ 28 days, else nights
+    if (nights >= 28) {
+      final months = (nights / 30).round();
+      return '$months month${months == 1 ? '' : 's'}';
+    }
+    return '$nights night${nights == 1 ? '' : 's'}';
+  }
+
+  static String _fmtPrice(double v) =>
+      '₱${v.toStringAsFixed(0).replaceAllMapped(
+            RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},')
+          }';
+
+  static String _initials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    }
+    return name.isNotEmpty ? name[0].toUpperCase() : '?';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final t = widget.testimonial;
+    final t        = widget.testimonial;
+    final duration = _stayDuration(t.checkIn, t.checkOut);
+    final dateStr  = _fmtDate(t.createdAt);
+    final fullInt  = t.rating.floor();
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color:         AppColors.card(context),
@@ -1803,102 +1890,252 @@ class _TestimonialCardState extends State<_TestimonialCard> {
           BoxShadow(
               color:      Colors.black.withOpacity(.04),
               blurRadius: 14,
-              offset:     const Offset(0, 4))
+              offset:     const Offset(0, 4)),
         ],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
 
-        // header
-        Row(children: [
-          // avatar with orange ring
-          Container(
-            width:  44,
-            height: 44,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                  color: AppColors.primaryOrange.withOpacity(.3),
-                  width: 2),
-            ),
-            child: ClipOval(
-              child: t.photoUrl.isNotEmpty
-                  ? Image.network(t.photoUrl, fit: BoxFit.cover)
-                  : Container(
-                      color: AppColors.orangeLight,
-                      child: const Icon(Icons.person_rounded,
-                          color: AppColors.primaryOrange)),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(t.name,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize:   14,
-                      color:      AppColors.text(context),
-                    )),
-                const SizedBox(height: 3),
-                Row(
-                  children: List.generate(5, (i) => Icon(
-                    i < t.rating
-                        ? Icons.star_rounded
-                        : Icons.star_outline_rounded,
-                    size:  13,
-                    color: i < t.rating
-                        ? AppColors.primaryOrange
-                        : AppColors.border,
-                  )),
+          // ── Row 1: avatar · name/date · stars ───────────────────────
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+
+              // Avatar — photo or initials fallback
+              Container(
+                width:  46,
+                height: 46,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                      color: AppColors.primaryOrange.withOpacity(.25),
+                      width: 2),
                 ),
+                child: ClipOval(
+                  child: FutureBuilder<DocumentSnapshot>(
+  future: FirebaseFirestore.instance
+      .collection('users')
+      .doc(t.userId)
+      .get(),
+  builder: (context, snap) {
+    if (snap.hasData && snap.data!.exists) {
+      final data = snap.data!.data() as Map<String, dynamic>;
+      final photo = data['photo'] ?? '';
+
+      if (photo != '') {
+        return Image.network(photo, fit: BoxFit.cover);
+      }
+    }
+    return _InitialsAvatar(name: t.name);
+  },
+),
+                ),
+              ),
+
+              const SizedBox(width: 11),
+
+              // Name + review date
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t.name,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize:   14,
+                          color:      AppColors.text(context),
+                        )),
+                    if (dateStr.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(dateStr,
+                          style: const TextStyle(
+                              fontSize: 11.5,
+                              color: AppColors.textLight)),
+                    ],
+                  ],
+                ),
+              ),
+
+              // Star rating (numeric + icons)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(5, (i) => Padding(
+                      padding: const EdgeInsets.only(left: 1),
+                      child: Icon(
+                        i < fullInt
+                            ? Icons.star_rounded
+                            : Icons.star_outline_rounded,
+                        size:  13,
+                        color: i < fullInt
+                            ? AppColors.primaryOrange
+                            : AppColors.border,
+                      ),
+                    )),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    t.rating.toStringAsFixed(1),
+                    style: const TextStyle(
+                      fontSize:   12,
+                      fontWeight: FontWeight.w700,
+                      color:      AppColors.primaryOrange,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // ── Row 2: stay chips ────────────────────────────────────────
+          if (duration.isNotEmpty || t.amountPaid > 0) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (duration.isNotEmpty)
+                  _ReviewChip(
+                    icon:  Icons.nights_stay_outlined,
+                    label: duration,
+                  ),
+                if (t.checkIn != null && t.checkOut != null)
+                  _ReviewChip(
+                    icon:  Icons.calendar_today_outlined,
+                    label: '${_fmtDate(t.checkIn)} – ${_fmtDate(t.checkOut)}',
+                  ),
+                if (t.amountPaid > 0)
+                  _ReviewChip(
+                    icon:  Icons.payments_outlined,
+                    label: _fmtPrice(t.amountPaid),
+                    faint: true,
+                  ),
               ],
             ),
+          ],
+
+          // ── Row 3: divider ───────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Divider(
+                height: 1,
+                thickness: 0.8,
+                color: AppColors.border),
           ),
-        ]),
 
-        const SizedBox(height: 10),
+          // ── Row 4: comment with animated expand ──────────────────────
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 240),
+            crossFadeState: _expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            firstChild: Text(t.comment,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 13.5,
+                    color:    AppColors.textMid,
+                    height:   1.6)),
+            secondChild: Text(t.comment,
+                style: const TextStyle(
+                    fontSize: 13.5,
+                    color:    AppColors.textMid,
+                    height:   1.6)),
+          ),
 
-        // comment with animated expand
-        AnimatedCrossFade(
-          duration: const Duration(milliseconds: 240),
-          crossFadeState: _expanded
-              ? CrossFadeState.showSecond
-              : CrossFadeState.showFirst,
-          firstChild: Text(t.comment,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                  fontSize: 13,
-                  color:    AppColors.textMid,
-                  height:   1.55)),
-          secondChild: Text(t.comment,
-              style: const TextStyle(
-                  fontSize: 13,
-                  color:    AppColors.textMid,
-                  height:   1.55)),
-        ),
-
-        GestureDetector(
-          onTap: () => setState(() => _expanded = !_expanded),
-          child: Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              _expanded ? 'Show less' : 'Read more',
-              style: const TextStyle(
-                color:      AppColors.primaryOrange,
-                fontWeight: FontWeight.w600,
-                fontSize:   12.5,
+          // Read more / less toggle
+          if (t.comment.length > 120)
+            GestureDetector(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  _expanded ? 'Show less' : 'Read more',
+                  style: const TextStyle(
+                    color:      AppColors.primaryOrange,
+                    fontWeight: FontWeight.w600,
+                    fontSize:   12.5,
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 }
 
+// ── Initials avatar fallback ──────────────────────────────────────────────────
 
+class _InitialsAvatar extends StatelessWidget {
+  final String name;
+  const _InitialsAvatar({required this.name});
+
+  String get _initials {
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    return name.isNotEmpty ? name[0].toUpperCase() : '?';
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+        color: AppColors.orangeLight,
+        child: Center(
+          child: Text(
+            _initials,
+            style: const TextStyle(
+              fontSize:   15,
+              fontWeight: FontWeight.w800,
+              color:      AppColors.primaryOrange,
+            ),
+          ),
+        ),
+      );
+}
+
+// ── Small info chip used inside review cards ──────────────────────────────────
+
+class _ReviewChip extends StatelessWidget {
+  final IconData icon;
+  final String   label;
+  final bool     faint;
+
+  const _ReviewChip({
+    required this.icon,
+    required this.label,
+    this.faint = false,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: faint
+              ? AppColors.border.withOpacity(.5)
+              : AppColors.orangeLight,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon,
+              size:  11,
+              color: faint
+                  ? AppColors.textLight
+                  : AppColors.primaryOrange),
+          const SizedBox(width: 5),
+          Text(label,
+              style: TextStyle(
+                fontSize:   11,
+                fontWeight: FontWeight.w600,
+                color: faint
+                    ? AppColors.textLight
+                    : AppColors.primaryOrange,
+              )),
+        ]),
+      );
+}
 // ════════════════════════════════════════════════════════════════════════════
 //  ROOM SELECTION BOTTOM SHEET
 //  • AnimatedContainer tile bg + border

@@ -474,8 +474,9 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
         const SizedBox(height: 12),
         _FormCard(children: [
           GestureDetector(
-            onTap: _pickDob,
-            child: Padding(
+  behavior: HitTestBehavior.opaque,
+  onTap: _pickDob,
+  child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(children: [
                 Icon(Icons.calendar_today_outlined, size: 19,

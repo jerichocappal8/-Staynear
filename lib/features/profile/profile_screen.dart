@@ -209,7 +209,6 @@ const SizedBox(height: 5),
 
 _menu(Icons.person, "Personal details", const PersonalDetailsScreen()),
 _menu(Icons.settings, "Settings", const SettingsScreen()),
-_menu(Icons.credit_card, "Payment details", const PaymentDetailsScreen()),
 _menu(Icons.help_outline, "FAQ", const FAQScreen()),
 
 Padding(

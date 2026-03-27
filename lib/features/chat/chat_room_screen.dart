@@ -783,18 +783,6 @@ class _AttachMenuSheet extends StatelessWidget {
                 color: const Color(0xFF8B5CF6),
                 onTap: onImageTap,
               ),
-              _AttachOption(
-                icon:  Icons.calendar_month_rounded,
-                label: 'Booking',
-                color: AppColors.primaryOrange,
-                onTap: onBookingTap,
-              ),
-              _AttachOption(
-                icon:  Icons.payments_rounded,
-                label: 'Payment',
-                color: const Color(0xFF10B981),
-                onTap: onPaymentTap,
-              ),
             ],
           ),
           const SizedBox(height: 4),

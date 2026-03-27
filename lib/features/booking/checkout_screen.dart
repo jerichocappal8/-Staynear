@@ -18,6 +18,7 @@ import '../../models/guest_info_model.dart';
 import '../../models/booking_model.dart';
 import '../payment/payment_screen.dart';
 import 'dart:ui';
+import '../chat/chat_service.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 //  LIGHTWEIGHT LOCAL MODELS
 //  (Replace with your real model imports when integrating)
@@ -333,31 +334,24 @@ final booking = BookingModel(
   createdAt: DateTime.now(),
 );
 
-  final bookingRef = await FirebaseFirestore.instance
-      .collection("bookings")
-      .add(booking.toMap());
+final bookingRef = await FirebaseFirestore.instance
+    .collection("bookings")
+    .add(booking.toMap());
+
 // ── attach booking to chat conversation ──
+final chatService = ChatService();
+
+final conversationId = await chatService.getOrCreateConversation(
+  propertyId: widget.apartment.id,
+  propertyName: widget.apartment.name,
+  hostId: widget.apartment.ownerId,
+);
+
 await FirebaseFirestore.instance
     .collection("conversations")
-    .where("propertyId", isEqualTo: widget.apartment.id)
-    .where("userId", isEqualTo: user.uid)
-    .limit(1)
-    .get()
-    .then((snapshot) async {
-
-  if (snapshot.docs.isNotEmpty) {
-
-    final conversationId = snapshot.docs.first.id;
-
-    await FirebaseFirestore.instance
-        .collection("conversations")
-        .doc(conversationId)
-        .update({
-      "bookingId": bookingRef.id,
-    });
-
-  }
-
+    .doc(conversationId)
+    .update({
+  "bookingId": bookingRef.id,
 });
   Navigator.of(context).push(
   PageRouteBuilder(

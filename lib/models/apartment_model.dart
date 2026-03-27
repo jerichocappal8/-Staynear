@@ -80,9 +80,15 @@ class ApartmentModel {
           .map<NearbyFacility>((e) => NearbyFacility.fromMap(e))
           .toList(),
 
-      testimonials: (data['testimonials'] ?? [])
-          .map<Testimonial>((e) => Testimonial.fromMap(e))
-          .toList(),
+testimonials: (data['testimonials'] ?? [])
+    .map<Testimonial>((e) => Testimonial(
+  name: e['name'] ?? '',
+  photoUrl: e['photoUrl'] ?? '',
+  userId: e['userId'] ?? '',
+  rating: ((e['rating'] ?? 0) as num).toDouble(),
+  comment: e['comment'] ?? '',
+))
+    .toList(),
     );
   }
 }

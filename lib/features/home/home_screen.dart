@@ -228,8 +228,6 @@ void initState() {
                         fontWeight: FontWeight.w600,
                         color: AppColors.textMid),
                   ),
-                  const Icon(Icons.keyboard_arrow_down_rounded,
-                      color: AppColors.textMid, size: 16),
                 ],
               ),
               const SizedBox(height: 6),
@@ -247,23 +245,6 @@ void initState() {
               ),
             ],
           ),
-        ),
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: AppColors.card(context),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withOpacity(.06),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4)),
-            ],
-          ),
-          // FIX: removed const (context dependency) + fixed invalid color expr
-          child: Icon(Icons.notifications_none_rounded,
-              color: AppColors.text(context), size: 22),
         ),
       ],
     );

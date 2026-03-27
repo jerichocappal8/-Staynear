@@ -73,27 +73,12 @@ class SettingsScreen extends StatelessWidget {
           const _SectionLabel(text: 'PREFERENCES'),
           _SettingsCard(items: [
             _SettingsTile(
-              icon: Icons.notifications_outlined,
-              iconColor: const Color(0xFF6366F1),
-              title: 'Notifications',
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const NotificationsPage())),
-            ),
-            _SettingsTile(
               icon: Icons.location_on_outlined,
               iconColor: const Color(0xFF10B981),
               title: 'Location Preferences',
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(
                       builder: (_) => const LocationPreferencesPage())),
-            ),
-            _SettingsTile(
-              icon: Icons.language_outlined,
-              iconColor: const Color(0xFF3B82F6),
-              title: 'Language',
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const LanguagePage())),
-              isLast: true,
             ),
           ]),
 
@@ -913,66 +898,6 @@ class _PersistentRadioGroupState extends State<_PersistentRadioGroup> {
 // ════════════════════════════════════════════════════════════════════════════
 //  NOTIFICATIONS PAGE
 // ════════════════════════════════════════════════════════════════════════════
-
-class NotificationsPage extends StatelessWidget {
-  const NotificationsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return _InnerPage(
-      title: 'Notifications',
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-        children: [
-          const _SectionLabel(text: 'PUSH NOTIFICATIONS'),
-          _SettingsCard(children: [
-            const _PersistentSwitchTile(
-              title: 'New Messages',
-              subtitle: 'Get notified when you receive a message',
-              prefKey: SettingsPrefs.kPushNewMessages,
-              defaultValue: true,
-            ),
-            const _PersistentSwitchTile(
-              title: 'Booking Updates',
-              subtitle: 'Reminders and status changes',
-              prefKey: SettingsPrefs.kPushBookingUpdates,
-              defaultValue: true,
-            ),
-            const _PersistentSwitchTile(
-              title: 'Promotions',
-              subtitle: 'Deals and special offers',
-              prefKey: SettingsPrefs.kPushPromotions,
-            ),
-            const _PersistentSwitchTile(
-              title: 'App Updates',
-              subtitle: 'New features and improvements',
-              prefKey: SettingsPrefs.kPushAppUpdates,
-              isLast: true,
-            ),
-          ]),
-          const SizedBox(height: 24),
-          const _SectionLabel(text: 'EMAIL NOTIFICATIONS'),
-          _SettingsCard(children: [
-            const _PersistentSwitchTile(
-              title: 'Weekly Summary',
-              subtitle: 'A recap of your weekly activity',
-              prefKey: SettingsPrefs.kEmailWeekly,
-              defaultValue: true,
-            ),
-            const _PersistentSwitchTile(
-              title: 'Account Alerts',
-              subtitle: 'Security and sign-in notifications',
-              prefKey: SettingsPrefs.kEmailAlerts,
-              defaultValue: true,
-              isLast: true,
-            ),
-          ]),
-        ],
-      ),
-    );
-  }
-}
-
 // ════════════════════════════════════════════════════════════════════════════
 //  LOCATION PREFERENCES PAGE
 // ════════════════════════════════════════════════════════════════════════════
@@ -1122,28 +1047,6 @@ StreamBuilder<DocumentSnapshot>(
     ]);
   },
 ),
-          const SizedBox(height: 24),
-          const _SectionLabel(text: 'PRIVACY'),
-          _SettingsCard(children: [
-            const _PersistentSwitchTile(
-              title: 'Profile Visibility',
-              subtitle: 'Allow others to find your profile',
-              prefKey: SettingsPrefs.kPrivacyVisibility,
-              defaultValue: true,
-            ),
-            const _PersistentSwitchTile(
-              title: 'Activity Status',
-              subtitle: 'Show when you were last active',
-              prefKey: SettingsPrefs.kPrivacyActivity,
-            ),
-            const _PersistentSwitchTile(
-              title: 'Data Analytics',
-              subtitle: 'Help improve the app with usage data',
-              prefKey: SettingsPrefs.kPrivacyAnalytics,
-              defaultValue: true,
-              isLast: true,
-            ),
-          ]),
           const SizedBox(height: 24),
           const _SectionLabel(text: 'ACCOUNT'),
           Container(
@@ -1378,34 +1281,6 @@ class AppearancePage extends StatelessWidget {
               isLast: true,
             ),
           ]),
-          const SizedBox(height: 24),
-          const _SectionLabel(text: 'TEXT SIZE'),
-          _PersistentRadioGroup(
-            prefKey: SettingsPrefs.kTextSize,
-            defaultIndex: 1,
-            options: const [
-              'Small',
-              'Medium (Default)',
-              'Large',
-              'Extra Large',
-            ],
-          ),
-          const SizedBox(height: 24),
-          const _SectionLabel(text: 'LAYOUT'),
-          _SettingsCard(children: [
-            const _PersistentSwitchTile(
-              title: 'Compact Mode',
-              subtitle: 'Show more items with reduced spacing',
-              prefKey: SettingsPrefs.kCompactMode,
-            ),
-            const _PersistentSwitchTile(
-              title: 'Show Animations',
-              subtitle: 'Enable motion effects throughout the app',
-              prefKey: SettingsPrefs.kAnimations,
-              defaultValue: true,
-              isLast: true,
-            ),
-          ]),
         ],
       ),
     );
@@ -1416,60 +1291,6 @@ class AppearancePage extends StatelessWidget {
 //  LANGUAGE PAGE
 // ════════════════════════════════════════════════════════════════════════════
 
-class LanguagePage extends StatelessWidget {
-  const LanguagePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return _InnerPage(
-      title: 'Language',
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-        children: [
-          const _SectionLabel(text: 'SELECT LANGUAGE'),
-          _PersistentRadioGroup(
-            prefKey: SettingsPrefs.kLanguage,
-            defaultIndex: 0,
-            options: const [
-              'English (Default)',
-              'Filipino',
-              'Cebuano',
-              'Ilocano',
-              'Hiligaynon',
-              '中文 (Chinese)',
-              '日本語 (Japanese)',
-              '한국어 (Korean)',
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0F9FF),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFBAE6FD)),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.translate_rounded,
-                    size: 16, color: Color(0xFF0284C7)),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Changing the language will restart the app to apply the new settings.',
-                    style: TextStyle(
-                        fontSize: 12, color: Color(0xFF0369A1), height: 1.5),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ════════════════════════════════════════════════════════════════════════════
 //  ABOUT APP PAGE

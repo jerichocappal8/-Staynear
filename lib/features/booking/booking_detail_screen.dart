@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'advance_payment_page.dart';
+import '../reviews/review_page.dart';
 
 import '../../core/app_colors.dart';
 
@@ -253,6 +254,7 @@ Widget build(BuildContext context) {
     final paymentStatus = (d['paymentStatus'] ?? 'unpaid').toString();
     final nights        = _nights(checkIn, checkOut);
     final isCancelled   = bookingStatus.toLowerCase() == 'cancelled';
+    final hasReview = (d['hasReview'] ?? false) as bool;
     final monthlyRent = d['priceMonthly'] ?? 0;
     final securityDeposit = d['securityDeposit'] ?? 0;
     final serviceFee = d['serviceFee'] ?? 0;
@@ -465,14 +467,15 @@ if (pricingMode == "monthly" && remainingBalance > 0) ...[
   ),
 );
     },
-    child: const Text(
-      "Pay Remaining Balance",
-      style: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0.2,
-      ),
-    ),
+child: Text(
+  "Pay Remaining Balance",
+  style: const TextStyle(
+    color: Colors.white,
+    fontSize: 15,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.2,
+  ),
+),
   ),
 ),
 ],
@@ -506,46 +509,70 @@ if (pricingMode == "monthly" && remainingBalance > 0) ...[
                   const SizedBox(height: 32),
 
 if (!isCancelled) ...[
-  _CancelButton(
-    cancelling: _cancelling,
-    onTap: _cancelBooking,
-  ),
+  if (paymentStatus.toLowerCase() == 'paid') ...[
+    if (hasReview)
+      const _ReviewSubmittedBadge()
+    else
+      _ReviewButton(
+        onTap: () async {
+          final submitted = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ReviewPage(
+                bookingId: widget.bookingId,
+                data: d,
+              ),
+            ),
+          );
+
+          // Firestore stream will auto update hasReview
+          if (submitted == true) {
+            // nothing needed, StreamBuilder will rebuild
+          }
+        },
+      ),
+  ] else ...[
+    _CancelButton(
+      cancelling: _cancelling,
+      onTap: _cancelBooking,
+    ),
+  ],
 
   const SizedBox(height: 12),
 
   Container(
-  padding: const EdgeInsets.all(14),
-  decoration: BoxDecoration(
-    color: AppColors.danger.withOpacity(0.08),
-    borderRadius: BorderRadius.circular(14),
-    border: Border.all(
-      color: AppColors.danger.withOpacity(0.35),
-      width: 1,
-    ),
-  ),
-  child: Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Icon(
-        Icons.warning_amber_rounded,
-        color: AppColors.danger,
-        size: 18,
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: AppColors.danger.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(
+        color: AppColors.danger.withOpacity(0.35),
+        width: 1,
       ),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Text(
-          "Bookings can only be cancelled within 24 hours after booking.",
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w600,
-            color: AppColors.danger,
-            height: 1.4,
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.warning_amber_rounded,
+          color: AppColors.danger,
+          size: 18,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            "Bookings can only be cancelled within 24 hours after booking.",
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: AppColors.danger,
+              height: 1.4,
+            ),
           ),
         ),
-      ),
-    ],
+      ],
+    ),
   ),
-)
 ],
                 ],
               ),
@@ -946,6 +973,60 @@ class _PaymentRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+class _ReviewButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ReviewButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        height: 52,
+        decoration: BoxDecoration(
+          color: AppColors.primaryOrange,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Center(
+          child: Text(
+            'Add Review',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+class _ReviewSubmittedBadge extends StatelessWidget {
+  const _ReviewSubmittedBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 52,
+      decoration: BoxDecoration(
+        color: const Color(0xFFD1FAE5),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Center(
+        child: Text(
+          'Review Submitted',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF059669),
+          ),
+        ),
       ),
     );
   }

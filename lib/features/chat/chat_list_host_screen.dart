@@ -163,8 +163,10 @@ return GestureDetector(
 
                 final userData =
                     userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
-                final name = userData['name'] ?? 'Guest';
-                final photo = userData['photo'];
+                final firstName = userData['firstName'] ?? '';
+final lastName = userData['lastName'] ?? '';
+final name = '$firstName $lastName'.trim();
+final photo = userData['photo'];
 
                 return _ConversationTile(
                   conversationId: conversations[index].id,

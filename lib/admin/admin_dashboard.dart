@@ -9,8 +9,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:staynear/admin/host_request_details_screen.dart';
 
 import 'package:staynear/core/app_colors.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:staynear/features/auth/auth_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -121,6 +124,18 @@ class _AdminDashboardState extends State<AdminDashboard>
     if (confirmed == true) await _reject(uid);
   }
 
+Future<void> _logout() async {
+  await FirebaseAuth.instance.signOut();
+
+  if (!mounted) return;
+
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(
+      builder: (_) => const AuthScreen(isLogin: true),
+    ),
+    (route) => false,
+  );
+}
   // ════════════════════════════════════════════════════════════════════════
   //  BUILD
   // ════════════════════════════════════════════════════════════════════════
@@ -226,26 +241,41 @@ class _AdminDashboardState extends State<AdminDashboard>
           letterSpacing: -.5,
         ),
       ),
-      actions: [
-        Container(
-          margin: const EdgeInsets.only(right: 16),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color:         AppColors.orangeLight,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: const [
-            Icon(Icons.admin_panel_settings_rounded,
-                size: 13, color: AppColors.primaryOrange),
-            SizedBox(width: 5),
-            Text('Admin',
-                style: TextStyle(
-                    fontSize:   11,
-                    fontWeight: FontWeight.w700,
-                    color:      AppColors.primaryOrange)),
-          ]),
+actions: [
+
+  // Admin badge
+  Container(
+    margin: const EdgeInsets.only(right: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(
+      color: AppColors.orangeLight,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Row(mainAxisSize: MainAxisSize.min, children: const [
+      Icon(Icons.admin_panel_settings_rounded,
+          size: 13, color: AppColors.primaryOrange),
+      SizedBox(width: 5),
+      Text(
+        'Admin',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: AppColors.primaryOrange,
         ),
-      ],
+      ),
+    ]),
+  ),
+
+  // Logout button
+  IconButton(
+    tooltip: 'Logout',
+    icon: const Icon(Icons.logout_rounded),
+    color: AppColors.text(context),
+    onPressed: _logout,
+  ),
+
+  const SizedBox(width: 8),
+],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
         child: Container(
@@ -291,7 +321,16 @@ class _RequestCard extends StatelessWidget {
     final isDark   = Theme.of(context).brightness == Brightness.dark;
     final location = [city, province].where((s) => s.isNotEmpty).join(', ');
 
-    return Container(
+return GestureDetector(
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HostRequestDetailsScreen(userId: docId),
+      ),
+    );
+  },
+  child: Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color:         AppColors.card(context),
@@ -413,8 +452,9 @@ class _RequestCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

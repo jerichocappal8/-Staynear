@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'package:flutter_stripe/flutter_stripe.dart';
+
 import 'firebase_options.dart';
+
 import 'core/settings_prefs.dart';
 import 'core/settings_controller.dart';
 import 'core/location_service.dart';
@@ -12,8 +17,8 @@ import 'features/home/main_shell.dart';
 import 'features/auth/auth_screen.dart';
 import 'features/auth/splash_screen.dart';
 import 'features/auth/auth_gate.dart';
-import 'package:flutter_stripe/flutter_stripe.dart';
 
+import '../../l10n/app_localizations.dart';
 Future<void> main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,7 +39,9 @@ Future<void> main() async {
   // ─────────────────────────────────────────
   // Initialize Stripe
   // ─────────────────────────────────────────
-  Stripe.publishableKey = "pk_test_51TA7mDEF3hIooLTXxM34PAOAsfUUukr2zuHNzvbmdnmuomGC6dPpxXTuujpWuVz23CCwhsdm982edsFr9BMyqCMc00EkZZ4hvO";
+  Stripe.publishableKey =
+      "pk_test_51TA7mDEF3hIooLTXxM34PAOAsfUUukr2zuHNzvbmdnmuomGC6dPpxXTuujpWuVz23CCwhsdm982edsFr9BMyqCMc00EkZZ4hvO";
+
   await Stripe.instance.applySettings();
 
   // ─────────────────────────────────────────
@@ -61,6 +68,24 @@ class StayNearApp extends StatelessWidget {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
 
+          // ─────────────────────────────────────────
+          // Localization Setup
+          // ─────────────────────────────────────────
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+
+          supportedLocales: const [
+            Locale('en'),
+            Locale('fil'),
+          ],
+
+          // ─────────────────────────────────────────
+          // Theme
+          // ─────────────────────────────────────────
           theme: ThemeData(
             brightness: Brightness.light,
             primaryColor: const Color(0xFFF5A623),
@@ -77,6 +102,9 @@ class StayNearApp extends StatelessWidget {
 
           themeMode: settingsController.themeMode,
 
+          // ─────────────────────────────────────────
+          // First screen
+          // ─────────────────────────────────────────
           home: const SplashScreen(),
         );
       },

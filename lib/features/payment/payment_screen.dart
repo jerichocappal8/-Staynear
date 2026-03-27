@@ -145,17 +145,31 @@ await _startStripePayment(amountToCharge);
         'paidAt': Timestamp.now(),
       });
 
-      // 4. Write payment history
-      final payment = PaymentModel(
-        bookingId: widget.bookingId,
-        amount: amountToCharge,
-        method: 'card',
-        status: 'success',
-        createdAt: DateTime.now(),
-      );
-      await FirebaseFirestore.instance
-          .collection('payments')
-          .add(payment.toMap());
+// 4. Write payment history
+final payment = PaymentModel(
+  bookingId: widget.bookingId,
+  amount: amountToCharge,
+  method: 'card',
+  status: 'success',
+  createdAt: DateTime.now(),
+);
+
+final paymentRef = await FirebaseFirestore.instance
+    .collection('payments')
+    .add(payment.toMap());
+
+// ── attach payment to chat conversation ──
+final convoSnap = await FirebaseFirestore.instance
+    .collection("conversations")
+    .where("bookingId", isEqualTo: widget.bookingId)
+    .limit(1)
+    .get();
+
+if (convoSnap.docs.isNotEmpty) {
+  await convoSnap.docs.first.reference.update({
+    "paymentId": paymentRef.id,
+  });
+}
 
       // 5. Create room occupancy record
       await FirebaseFirestore.instance.collection('room_occupancy').add({

@@ -90,13 +90,15 @@ class ChatService {
   }
 
 Future<Map<String, dynamic>> _currentUserMeta() async {
+
   final uid = currentUserId;
   final doc = await _firestore.collection('users').doc(uid).get();
   final data = doc.data() ?? {};
 
   return {
     'senderId': uid,
-    'senderName': data['name'] ?? '',
+    'senderName':
+        '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}'.trim(),
     'senderPhoto': data['photo'] ?? '',
   };
 }
@@ -260,13 +262,14 @@ Future<Map<String, dynamic>> _currentUserMeta() async {
   // HELPER: Fetch other participant's info
   // ─────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> getOtherParticipantInfo(
-    String otherUserId) async {
+Future<Map<String, dynamic>> getOtherParticipantInfo(
+  String otherUserId) async {
+
   final doc = await _firestore.collection('users').doc(otherUserId).get();
   final data = doc.data() ?? {};
 
   return {
-    'name': data['name'] ?? 'Guest',
+    'name': '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}'.trim(),
     'photo': data['photo'] ?? '',
   };
 }

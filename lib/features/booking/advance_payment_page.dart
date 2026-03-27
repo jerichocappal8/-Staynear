@@ -255,6 +255,7 @@ final clientSecret = result.data['clientSecret'];
   }
 
 Future<void> _updateFirestore(double amountPaid) async {
+
   final bookingRef = FirebaseFirestore.instance
       .collection('bookings')
       .doc(widget.bookingId);
@@ -262,6 +263,9 @@ Future<void> _updateFirestore(double amountPaid) async {
   final paymentsRef =
       FirebaseFirestore.instance.collection('payments');
 
+  final paymentDoc = paymentsRef.doc();
+
+  // ── transaction ─────────────────────────
   await FirebaseFirestore.instance.runTransaction((tx) async {
 
     final snap = await tx.get(bookingRef);
@@ -269,25 +273,26 @@ Future<void> _updateFirestore(double amountPaid) async {
 
     final prevAmountPaid =
         ((current['amountPaid'] as num?) ?? 0).toDouble();
+
     final prevRemaining =
         ((current['remainingBalance'] as num?) ?? 0).toDouble();
 
     final newAmountPaid = prevAmountPaid + amountPaid;
+
     final newRemaining =
         (prevRemaining - amountPaid).clamp(0.0, double.infinity);
 
     final newStatus = newRemaining <= 0 ? 'paid' : 'partial';
 
-    // Update booking
+    // update booking
     tx.update(bookingRef, {
       'amountPaid': newAmountPaid,
       'remainingBalance': newRemaining,
       'paymentStatus': newStatus,
     });
 
-    // ⭐ THIS IS THE IMPORTANT PART
-    // Create payment record for revenue analytics
-    tx.set(paymentsRef.doc(), {
+    // create payment
+    tx.set(paymentDoc, {
       'amount': amountPaid,
       'bookingId': widget.bookingId,
       'apartmentName': current['apartmentName'],
@@ -297,6 +302,19 @@ Future<void> _updateFirestore(double amountPaid) async {
     });
 
   });
+
+  // ── attach payment to chat conversation ──
+  final convoSnap = await FirebaseFirestore.instance
+      .collection("conversations")
+      .where("bookingId", isEqualTo: widget.bookingId)
+      .limit(1)
+      .get();
+
+  if (convoSnap.docs.isNotEmpty) {
+    await convoSnap.docs.first.reference.update({
+      "paymentId": paymentDoc.id,
+    });
+  }
 }
 
   // ─────────────────────────────────────────────────────────────────────────
