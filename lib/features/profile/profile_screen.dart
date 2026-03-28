@@ -8,6 +8,7 @@ import 'host_application_screen.dart';
 import 'personal_details_screen.dart';
 import 'settings_screen.dart';
 import 'payment_details_screen.dart';
+import 'package:staynear/core/auth_helper.dart';
 import 'faq_screen.dart';
 import '../../core/app_colors.dart';
 import '../auth/auth_screen.dart';
@@ -34,10 +35,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
 Future<void> _loadUser() async {
-
   final user = FirebaseAuth.instance.currentUser;
 
-  if (user == null) return;
+  if (user == null) {
+    if (!mounted) return;
+    setState(() {
+      loading = false;
+      userData = null;
+    });
+    return;
+  }
 
   final uid = user.uid;
 
@@ -53,7 +60,6 @@ Future<void> _loadUser() async {
 }
 
 Future<void> _logout() async {
-
   if (loggingOut) return;
 
   final confirm = await showDialog<bool>(
@@ -77,51 +83,56 @@ Future<void> _logout() async {
     ),
   );
 
-  if (confirm == true) {
+  if (confirm != true) return;
 
-    loggingOut = true;
+  setState(() => loggingOut = true);
 
-    await FirebaseAuth.instance.signOut();
+  await FirebaseAuth.instance.signOut();
 
-    if (!mounted) return;
+  if (!mounted) return;
 
-    Navigator.pushAndRemoveUntil(
-  context,
-  SlidePageRoute(
-    page: const AuthScreen(isLogin: true),
-  ),
-  (route) => false,
-);
-  }
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(
+      builder: (_) => const AuthScreen(isLogin: true),
+    ),
+    (route) => false,
+  );
 }
 
 
-  Future<void> _handleHosting() async {
-    if (userData == null) return;
+Future<void> _handleHosting() async {
+  if (userData == null) return;
 
-    if (userData!['isHost'] == true) {
-      Navigator.push(
-        context,
-        SlidePageRoute(page: const HostDashboardScreen()),
-      );
-      return;
-    }
+  final uid = AuthHelper.uid;
 
-    if (userData!['hostRequest'] == 'pending') {
-      Navigator.push(
-        context,
-        SlidePageRoute(page: const HostStatusScreen()),
-      );
-      return;
-    }
+  final hostDoc = await FirebaseFirestore.instance
+      .collection('host_requests')
+      .doc(uid)
+      .get();
 
-    await Navigator.push(
+  if (userData!['isHost'] == true) {
+    Navigator.push(
       context,
-      SlidePageRoute(page: const HostApplicationScreen()),
+      SlidePageRoute(page: const HostDashboardScreen()),
     );
-
-    _loadUser();
+    return;
   }
+
+  if (hostDoc.exists) {
+    Navigator.push(
+      context,
+      SlidePageRoute(page: const HostStatusScreen()),
+    );
+    return;
+  }
+
+  await Navigator.push(
+    context,
+    SlidePageRoute(page: const HostApplicationScreen()),
+  );
+
+  _loadUser();
+}
 
   @override
   Widget build(BuildContext context) {

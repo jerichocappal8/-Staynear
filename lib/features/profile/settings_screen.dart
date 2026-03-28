@@ -29,6 +29,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 // Adjust these import paths to match your project structure.
 import '../../core/app_colors.dart';
+import 'package:staynear/core/auth_helper.dart';
 import '../../core/settings_prefs.dart';
 import '../../core/settings_controller.dart';
 import '../security/setup_2fa_screen.dart';
@@ -478,7 +479,7 @@ class _Enable2FATileState extends State<_Enable2FATile> {
 
   Future<void> _loadStatus() async {
 
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final uid = AuthHelper.uid;
 
     final doc = await FirebaseFirestore.instance
         .collection('users')
@@ -492,7 +493,7 @@ class _Enable2FATileState extends State<_Enable2FATile> {
 
   Future<void> _disable2FA() async {
 
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final uid = AuthHelper.uid;
 
     await FirebaseFirestore.instance
         .collection('users')
@@ -583,7 +584,7 @@ Future<void> _confirmDisable2FA() async {
 }
 Future<bool> _verifyCode(String code) async {
 
-  final uid = FirebaseAuth.instance.currentUser!.uid;
+  final uid = AuthHelper.uid;
 
   final doc = await FirebaseFirestore.instance
       .collection('users')

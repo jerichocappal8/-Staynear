@@ -287,62 +287,99 @@ late Animation<double> _fadeAnim;
   =========================
   */
 
-  Future<void> _handleAuth() async {
-    try {
-      if (!mounted) return;
-      setState(() => loading = true);
-
-      if (isLogin) {
-        bool biometricEnabled = SettingsPrefs.getBool(
-          SettingsPrefs.kSecurityBiometric,
-          defaultValue: true,
-        );
-
-        if (biometricEnabled) {
-          bool authenticated = await BiometricService.authenticate();
-
-          if (!authenticated) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Biometric authentication failed'),
-                backgroundColor: AppColors.danger,
-              ),
-            );
-            setState(() => loading = false);
-            return;
-          }
-        }
-
-        final loginUser = await auth.login(
-          emailCtrl.text.trim(),
-          passCtrl.text.trim(),
-        );
-
-        if (loginUser != null) {
-          await _check2FA();
-        }
-      } else {
-        final registerUser = await auth.register(
-          emailCtrl.text.trim(),
-          passCtrl.text.trim(),
-          phoneCtrl.text.trim(),
-          nameCtrl.text.trim(),
-        );
-
-        if (registerUser != null) {
-          await _goHome();
-        }
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
+Future<void> _handleAuth() async {
+  // ── VALIDATE INPUT FIRST ──
+  if (emailCtrl.text.trim().isEmpty &&
+      passCtrl.text.trim().isEmpty) {
+    _showError("Please enter your email and password.");
+    return;
   }
 
+  if (emailCtrl.text.trim().isEmpty) {
+    _showError("Please enter your email address.");
+    return;
+  }
+
+  if (passCtrl.text.trim().isEmpty) {
+    _showError("Please enter your password.");
+    return;
+  }
+
+  try {
+    if (!mounted) return;
+    setState(() => loading = true);
+
+    if (isLogin) {
+      bool biometricEnabled = SettingsPrefs.getBool(
+        SettingsPrefs.kSecurityBiometric,
+        defaultValue: true,
+      );
+
+      if (biometricEnabled) {
+        bool authenticated = await BiometricService.authenticate();
+
+        if (!authenticated) {
+          _showError("Biometric authentication failed");
+          setState(() => loading = false);
+          return;
+        }
+      }
+
+      final loginUser = await auth.login(
+        emailCtrl.text.trim(),
+        passCtrl.text.trim(),
+      );
+
+      if (loginUser != null) {
+        await _check2FA();
+      }
+    } else {
+      final registerUser = await auth.register(
+        emailCtrl.text.trim(),
+        passCtrl.text.trim(),
+        phoneCtrl.text.trim(),
+        nameCtrl.text.trim(),
+      );
+
+      if (registerUser != null) {
+        await _goHome();
+      }
+    }
+  } catch (e) {
+    if (!mounted) return;
+
+    String message = "Something went wrong";
+
+    if (e is FirebaseAuthException) {
+      switch (e.code) {
+        case 'user-not-found':
+          message = "No account found with this email.";
+          break;
+        case 'wrong-password':
+          message = "Incorrect password.";
+          break;
+        case 'invalid-email':
+          message = "Invalid email address.";
+          break;
+        case 'user-disabled':
+          message = "This account has been disabled.";
+          break;
+        case 'too-many-requests':
+          message = "Too many attempts. Try again later.";
+          break;
+        case 'network-request-failed':
+          message = "No internet connection.";
+          break;
+        default:
+          message = "Login failed. Please try again.";
+      }
+    }
+
+    _showError(message);
+  } finally {
+    if (mounted) setState(() => loading = false);
+  }
+}
   /*
   =========================
   CHECK 2FA
@@ -466,7 +503,22 @@ late Animation<double> _fadeAnim;
       );
     }
   }
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.danger,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
 }
+
 
 // ─── Hero header widget ───────────────────────────────────────────────────────
 

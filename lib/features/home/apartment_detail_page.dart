@@ -589,21 +589,6 @@ class _ImageGalleryState extends State<_ImageGallery> {
                   scale: widget.favScale.value,
                   child: child,
                 ),
-                child: _GlassButton(
-                  onTap: widget.onFavorite,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 100),
-                    child: Icon(
-                      widget.isFavorite
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      key: ValueKey(widget.isFavorite),
-                      color:
-                          widget.isFavorite ? Colors.red : Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                ),
               ),
             ),
           ),

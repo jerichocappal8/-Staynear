@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart'; // add intl to pubspec.yaml
 import 'package:staynear/core/app_colors.dart';
+import 'package:staynear/core/auth_helper.dart';
 
 // ── PH Address data ───────────────────────────────────────────────────────────
 const _phRegions = [
@@ -112,7 +113,7 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
     super.dispose();
   }
   Future<void> _checkProfilePhoto() async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final uid = AuthHelper.uid;
     final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
     final photo = doc.data()?['photo'];
     if (photo == null || !photo.toString().startsWith('http')) {
@@ -174,7 +175,7 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
   // ── Submit ────────────────────────────────────────────────────────────────
   Future<void> _submit() async {
     if (!_validateStep3()) return;
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final uid = AuthHelper.uid;
     setState(() => loading = true);
     try {
       if (profileRequired && profileImage != null) {

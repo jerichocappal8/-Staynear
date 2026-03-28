@@ -103,21 +103,52 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     }
   }
 
-  Future<void> _pickAndSendImage() async {
-    final XFile? picked = await _picker.pickImage(
-        source: ImageSource.gallery, imageQuality: 80);
-    if (picked == null) return;
-    setState(() => _isSending = true);
-    try {
-      await _chatService.sendImageMessage(
-        conversationId: widget.conversationId,
-        imageFile: File(picked.path),
+Future<void> _pickAndSendImage() async {
+  final XFile? picked = await _picker.pickImage(
+    source: ImageSource.gallery,
+    imageQuality: 80,
+  );
+  if (picked == null) return;
+
+  final File imageFile = File(picked.path);
+
+  final bool? send = await showGeneralDialog<bool>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Dismiss',
+    barrierColor: Colors.black.withOpacity(0.85),
+    transitionDuration: const Duration(milliseconds: 400),
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutExpo,
       );
-      _scrollToBottom();
-    } finally {
-      setState(() => _isSending = false);
-    }
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.88, end: 1.0).animate(curved),
+          child: child,
+        ),
+      );
+    },
+    pageBuilder: (context, animation, secondaryAnimation) {
+      return _ImagePreviewDialog(imageFile: imageFile);
+    },
+  );
+
+  if (send != true) return;
+
+  setState(() => _isSending = true);
+  try {
+    await _chatService.sendImageMessage(
+      conversationId: widget.conversationId,
+      imageFile: imageFile,
+    );
+    _scrollToBottom();
+  } finally {
+    setState(() => _isSending = false);
   }
+}
 
   Future<void> _sendBookingRef() async {
     if (widget.bookingId == null) {
@@ -844,6 +875,432 @@ class _AttachOptionState extends State<_AttachOption> {
             ),
           ),
         ]),
+      ),
+    );
+  }
+}
+class _ImagePreviewDialog extends StatefulWidget {
+  final File imageFile;
+  const _ImagePreviewDialog({required this.imageFile});
+
+  @override
+  State<_ImagePreviewDialog> createState() => _ImagePreviewDialogState();
+}
+
+class _ImagePreviewDialogState extends State<_ImagePreviewDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _shimmer;
+  late Animation<double> _btnSlide;
+  late Animation<double> _btnFade;
+
+  bool _hovering = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..forward();
+
+    _shimmer = Tween<double>(begin: -1.5, end: 2.5).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+
+    _btnSlide = Tween<double>(begin: 30, end: 0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.45, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    _btnFade = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.45, 1.0, curve: Curves.easeOut),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Futuristic corner-bracket frame ──
+            _FuturisticImageFrame(
+              imageFile: widget.imageFile,
+              shimmer: _shimmer,
+            ),
+
+            const SizedBox(height: 6),
+
+            // ── Label ──
+            AnimatedBuilder(
+              animation: _ctrl,
+              builder: (_, __) => Opacity(
+                opacity: _btnFade.value,
+                child: Text(
+  'PREVIEW',
+  style: TextStyle(
+    color: AppColors.primaryOrange.withOpacity(0.6),
+    fontSize: 10,
+    letterSpacing: 1.2,
+    fontWeight: FontWeight.w600,
+    decoration: TextDecoration.none,
+    height: 1,
+  ),
+),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Buttons ──
+            AnimatedBuilder(
+              animation: _ctrl,
+              builder: (_, __) => Transform.translate(
+                offset: Offset(0, _btnSlide.value),
+                child: Opacity(
+                  opacity: _btnFade.value,
+                  child: Row(
+                    children: [
+                      // Cancel
+                      Expanded(
+                        child: _DialogButton(
+                          label: 'CANCEL',
+                          icon: Icons.close_rounded,
+                          isAccent: false,
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            Navigator.pop(context, false);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Send
+                      Expanded(
+                        child: _DialogButton(
+                          label: 'SEND',
+                          icon: Icons.send_rounded,
+                          isAccent: true,
+                          onTap: () {
+                            HapticFeedback.mediumImpact();
+                            Navigator.pop(context, true);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Corner-bracket image frame with shimmer ──────────────────────────────────
+class _FuturisticImageFrame extends StatelessWidget {
+  final File imageFile;
+  final Animation<double> shimmer;
+
+  const _FuturisticImageFrame({
+    required this.imageFile,
+    required this.shimmer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const cornerSize = 18.0;
+    const cornerThickness = 2.5;
+    const cornerColor = AppColors.primaryOrange;
+
+    return AnimatedBuilder(
+      animation: shimmer,
+      builder: (_, __) {
+        return Stack(
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: ShaderMask(
+                shaderCallback: (bounds) => LinearGradient(
+                  begin: Alignment(shimmer.value - 1, -0.3),
+                  end: Alignment(shimmer.value, 0.3),
+                  colors: [
+                    Colors.white.withOpacity(0),
+                    Colors.white.withOpacity(0.12),
+                    Colors.white.withOpacity(0),
+                  ],
+                ).createShader(bounds),
+                blendMode: BlendMode.srcATop,
+                child: Image.file(
+                  imageFile,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+
+            // Corner brackets — top-left
+            Positioned(
+              top: 0, left: 0,
+              child: _Corner(
+                color: cornerColor,
+                size: cornerSize,
+                thickness: cornerThickness,
+                corners: {_CornerSide.topLeft},
+              ),
+            ),
+            // top-right
+            Positioned(
+              top: 0, right: 0,
+              child: _Corner(
+                color: cornerColor,
+                size: cornerSize,
+                thickness: cornerThickness,
+                corners: {_CornerSide.topRight},
+              ),
+            ),
+            // bottom-left
+            Positioned(
+              bottom: 0, left: 0,
+              child: _Corner(
+                color: cornerColor,
+                size: cornerSize,
+                thickness: cornerThickness,
+                corners: {_CornerSide.bottomLeft},
+              ),
+            ),
+            // bottom-right
+            Positioned(
+              bottom: 0, right: 0,
+              child: _Corner(
+                color: cornerColor,
+                size: cornerSize,
+                thickness: cornerThickness,
+                corners: {_CornerSide.bottomRight},
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+enum _CornerSide { topLeft, topRight, bottomLeft, bottomRight }
+
+class _Corner extends StatelessWidget {
+  final Color color;
+  final double size;
+  final double thickness;
+  final Set<_CornerSide> corners;
+
+  const _Corner({
+    required this.color,
+    required this.size,
+    required this.thickness,
+    required this.corners,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _CornerPainter(
+          color: color,
+          thickness: thickness,
+          corners: corners,
+        ),
+      ),
+    );
+  }
+}
+
+class _CornerPainter extends CustomPainter {
+  final Color color;
+  final double thickness;
+  final Set<_CornerSide> corners;
+
+  _CornerPainter({
+    required this.color,
+    required this.thickness,
+    required this.corners,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = thickness
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.square;
+
+    final w = size.width;
+    final h = size.height;
+
+    for (final corner in corners) {
+      switch (corner) {
+        case _CornerSide.topLeft:
+          canvas.drawLine(Offset(0, h), Offset(0, 0), paint);
+          canvas.drawLine(Offset(0, 0), Offset(w, 0), paint);
+          break;
+        case _CornerSide.topRight:
+          canvas.drawLine(Offset(0, 0), Offset(w, 0), paint);
+          canvas.drawLine(Offset(w, 0), Offset(w, h), paint);
+          break;
+        case _CornerSide.bottomLeft:
+          canvas.drawLine(Offset(0, 0), Offset(0, h), paint);
+          canvas.drawLine(Offset(0, h), Offset(w, h), paint);
+          break;
+        case _CornerSide.bottomRight:
+          canvas.drawLine(Offset(w, 0), Offset(w, h), paint);
+          canvas.drawLine(Offset(w, h), Offset(0, h), paint);
+          break;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CornerPainter old) => false;
+}
+
+// ── Pressable button ─────────────────────────────────────────────────────────
+class _DialogButton extends StatefulWidget {
+  final String label;
+  final IconData icon;
+  final bool isAccent;
+  final VoidCallback onTap;
+
+  const _DialogButton({
+    required this.label,
+    required this.icon,
+    required this.isAccent,
+    required this.onTap,
+  });
+
+  @override
+  State<_DialogButton> createState() => _DialogButtonState();
+}
+
+class _DialogButtonState extends State<_DialogButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _press;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _press = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+      reverseDuration: const Duration(milliseconds: 180),
+      lowerBound: 0.0,
+      upperBound: 1.0,
+    );
+    _scale = Tween<double>(begin: 1.0, end: 0.93).animate(
+      CurvedAnimation(parent: _press, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _press.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.isAccent
+        ? const LinearGradient(
+            colors: [Color(0xFFFF8C00), AppColors.primaryOrange],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : LinearGradient(
+            colors: [
+              Colors.white.withOpacity(0.06),
+              Colors.white.withOpacity(0.03),
+            ],
+          );
+
+    final border = widget.isAccent
+        ? Border.all(color: AppColors.primaryOrange.withOpacity(0.6), width: 1)
+        : Border.all(color: Colors.white.withOpacity(0.15), width: 1);
+
+    final shadow = widget.isAccent
+        ? [
+            BoxShadow(
+              color: AppColors.primaryOrange.withOpacity(0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            )
+          ]
+        : <BoxShadow>[];
+
+    return GestureDetector(
+      onTapDown: (_) => _press.forward(),
+      onTapUp: (_) {
+        _press.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () => _press.reverse(),
+      child: AnimatedBuilder(
+        animation: _scale,
+        builder: (_, child) => Transform.scale(
+          scale: _scale.value,
+          child: child,
+        ),
+        child: Container(
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: bg,
+            borderRadius: BorderRadius.circular(12),
+            border: border,
+            boxShadow: shadow,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                widget.icon,
+                size: 15,
+                color: widget.isAccent
+                    ? Colors.white
+                    : Colors.white.withOpacity(0.6),
+              ),
+              const SizedBox(width: 7),
+              Text(
+  widget.label,
+  style: TextStyle(
+    color: widget.isAccent
+        ? Colors.white
+        : Colors.white.withOpacity(0.6),
+    fontSize: 12,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 1.2,
+    decoration: TextDecoration.none,
+    height: 1,
+  ),
+),
+            ],
+          ),
+        ),
       ),
     );
   }

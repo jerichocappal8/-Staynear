@@ -29,6 +29,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../profile/host_application_screen.dart';
+import '../profile/host_status_screen.dart';
+import 'package:staynear/core/auth_helper.dart';
 import '../host/host_dashboard_screen.dart';
 import 'apartment_detail_page.dart';
 import '../../core/app_colors.dart';
@@ -99,29 +102,43 @@ void initState() {
         .replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},');
   }
 
-  Future<void> _handleHostPress() async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
+Future<void> _handleHostPress() async {
+  final uid = AuthHelper.uid;
 
-    final data = doc.data();
-    if (data == null || !mounted) return;
+  final userDoc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(uid)
+      .get();
 
-    if (data['isHost'] == true) {
-      Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const HostDashboardScreen()));
-    } else if (data['hostRequest'] == 'pending') {
-      _showSnack("Your host request is pending approval");
-    } else {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .update({'hostRequest': 'pending'});
-      if (mounted) _showSnack("Host request sent for approval!");
-    }
+  final hostDoc = await FirebaseFirestore.instance
+      .collection('host_requests')
+      .doc(uid)
+      .get();
+
+  final data = userDoc.data();
+  if (data == null || !mounted) return;
+
+  if (data['isHost'] == true) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const HostDashboardScreen()),
+    );
+    return;
   }
+
+  if (hostDoc.exists) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const HostStatusScreen()),
+    );
+    return;
+  }
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => const HostApplicationScreen()),
+  );
+}
 
   // FIX: removed duplicate `backgroundColor: backgroundColor:` and replaced
   // AppColors.text(context) with AppColors.primaryOrange for snackbar bg.

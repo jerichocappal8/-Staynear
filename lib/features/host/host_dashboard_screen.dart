@@ -1,6 +1,6 @@
 // host_dashboard_screen.dart
 // ════════════════════════════════════════════════════════════════════════════
-//  StayNear — Host Dashboard Screen  (UI redesign, all logic unchanged)
+//  StayNear — Host Dashboard Screen  (gesture fix + Reviews card)
 // ════════════════════════════════════════════════════════════════════════════
 
 import 'package:flutter/material.dart';
@@ -17,6 +17,8 @@ import 'revenue_page.dart';
 import '../chat/chat_list_host_screen.dart';
 import 'host_profile_screen.dart';
 import '../../core/animations/slide_page_route.dart';
+import 'host_reviews_screen.dart';
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
@@ -39,8 +41,11 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
   late final List<Animation<double>>   _fade;
   late final List<Animation<Offset>>   _slide;
 
-  // ── stat card tap scale ────────────────────────────────────────────────────
-  final List<double> _cardScale = List.filled(4, 1.0);
+  // ── stat card scale controllers (one per card) ─────────────────────────────
+  // FIX: Use AnimationControllers instead of setState for scale to avoid
+  // "setState called when widget tree was locked" during long-press / drag.
+  late final List<AnimationController> _cardScaleCtrl;
+  late final List<Animation<double>>   _cardScaleAnim;
 
   @override
   void initState() {
@@ -71,11 +76,30 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
         if (mounted) _ctrl[i].forward();
       });
     }
+
+    // FIX: One AnimationController per stat card for safe press animation.
+    // This avoids calling setState() inside gesture callbacks while the
+    // framework is building / laying out the widget tree (e.g. on long-press).
+    _cardScaleCtrl = List.generate(
+      4,
+      (_) => AnimationController(
+        vsync:    this,
+        duration: const Duration(milliseconds: 120),
+        reverseDuration: const Duration(milliseconds: 180),
+      ),
+    );
+
+    _cardScaleAnim = _cardScaleCtrl.map((c) =>
+      Tween<double>(begin: 1.0, end: 0.955).animate(
+        CurvedAnimation(parent: c, curve: Curves.easeOut),
+      ),
+    ).toList();
   }
 
   @override
   void dispose() {
     for (final c in _ctrl) c.dispose();
+    for (final c in _cardScaleCtrl) c.dispose();
     super.dispose();
   }
 
@@ -85,11 +109,22 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
         child:   SlideTransition(position: _slide[i], child: child),
       );
 
-  // ── stat card tap handlers ─────────────────────────────────────────────────
-  void _onCardDown(int i) =>
-      setState(() => _cardScale[i] = .955);
-  void _onCardUp(int i) =>
-      setState(() => _cardScale[i] = 1.0);
+  // ── safe card press handlers ───────────────────────────────────────────────
+  // FIX: Use controller.forward/reverse instead of setState so the animation
+  // is driven purely by the AnimationController and never touches the
+  // widget tree during a locked build phase.
+  void _onCardDown(int i) {
+    HapticFeedback.lightImpact();
+    _cardScaleCtrl[i].forward();
+  }
+
+  void _onCardUp(int i, VoidCallback? onTap) {
+    _cardScaleCtrl[i].reverse().then((_) => onTap?.call());
+  }
+
+  void _onCardCancel(int i) {
+    _cardScaleCtrl[i].reverse();
+  }
 
   // ════════════════════════════════════════════════════════════════════════════
   //  BUILD
@@ -102,219 +137,226 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
         .collection('properties')
         .where('ownerId', isEqualTo: uid);
 
-return GestureDetector(
-  onHorizontalDragEnd: (details) {
-
-    // swipe LEFT → go to Messages
-    if (details.primaryVelocity! < 0) {
-      Navigator.pushReplacement(
-        context,
-        SlidePageRoute(
-          page: ChatListHostScreen(
-            hostId: FirebaseAuth.instance.currentUser!.uid,
-          ),
-        ),
-      );
-    }
-
-  },
-
-  child: Scaffold(
-    backgroundColor: AppColors.background(context),
-
-    body: StreamBuilder<QuerySnapshot>(
-      stream: propertiesRef.snapshots(),
-      builder: (context, snapshot) {
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-                color: AppColors.primaryOrange, strokeWidth: 2.5),
-          );
-        }
-
-        if (!snapshot.hasData) {
-          return const Center(child: Text('No data'));
-        }
-
-        final docs   = snapshot.data!.docs;
-        final total  = docs.length;
-        final active = docs
-            .where((d) => (d['isActive'] ?? false) == true)
-            .length;
-        final recent = docs.take(3).toList();
-
-        final viewsTotal     = 0;
-        final inquiriesTotal = 0;
-
-        return CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-
-            SliverToBoxAdapter(
-              child: _s(0, _HeroHeader(
-                total:  total,
-                active: active,
-              )),
-            ),
-
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-
-                  const SizedBox(height: 2),
-
-                  _s(1, _buildStatsGrid(
-                    context,
-                    total:           total,
-                    active:          active,
-                    inquiriesTotal:  inquiriesTotal,
-                  )),
-
-                  const SizedBox(height: 32),
-
-                  _s(2, _SectionHeader(
-                    title:  'Recent Listings',
-                    action: 'See all',
-                    onAction: () {},
-                  )),
-
-                  const SizedBox(height: 14),
-
-                  _s(3, _RecentListings(docs: recent)),
-
-                  const SizedBox(height: 32),
-
-                  const SizedBox(height: 24),
-                ]),
-              ),
-            ),
-          ],
-        );
-      },
-    ),
-
-    bottomNavigationBar: HostBottomNav(
-      currentIndex: 0,
-      onTap: (index) {
-
-        if (index == 0) return;
-
-        if (index == 1) {
-          Navigator.push(
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        // swipe LEFT → go to Messages
+        if (details.primaryVelocity! < 0) {
+          Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
-              builder: (_) => ChatListHostScreen(
+            SlidePageRoute(
+              page: ChatListHostScreen(
                 hostId: FirebaseAuth.instance.currentUser!.uid,
               ),
             ),
           );
         }
-
-        if (index == 2) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const HostProfileScreen(),
-            ),
-          );
-        }
       },
-    ),
 
-    floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      child: Scaffold(
+        backgroundColor: AppColors.background(context),
 
-    floatingActionButton: Padding(
-      padding: const EdgeInsets.only(bottom: 5),
-      child: SizedBox(
-        width: MediaQuery.of(context).size.width - 40,
-        child: _AddApartmentButton(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const AddApartmentScreen(),
+        body: StreamBuilder<QuerySnapshot>(
+          stream: propertiesRef.snapshots(),
+          builder: (context, snapshot) {
+
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(
+                    color: AppColors.primaryOrange, strokeWidth: 2.5),
+              );
+            }
+
+            if (!snapshot.hasData) {
+              return const Center(child: Text('No data'));
+            }
+
+            final docs   = snapshot.data!.docs;
+            final total  = docs.length;
+            final active = docs
+                .where((d) => (d['isActive'] ?? false) == true)
+                .length;
+            final recent = docs.take(3).toList();
+
+            final inquiriesTotal = 0;
+
+            return CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+
+                SliverToBoxAdapter(
+                  child: _s(0, _HeroHeader(
+                    total:  total,
+                    active: active,
+                  )),
+                ),
+
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+
+                      const SizedBox(height: 2),
+
+                      _s(1, _buildStatsGrid(
+                        context,
+                        total:  total,
+                        active: active,
+                      )),
+
+                      const SizedBox(height: 32),
+
+                      _s(2, _SectionHeader(
+                        title:    'Recent Listings',
+                        action:   'See all',
+                        onAction: () {},
+                      )),
+
+                      const SizedBox(height: 14),
+
+                      _s(3, _RecentListings(docs: recent)),
+
+                      const SizedBox(height: 32),
+                      const SizedBox(height: 24),
+                    ]),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+
+        bottomNavigationBar: HostBottomNav(
+          currentIndex: 0,
+          onTap: (index) {
+            if (index == 0) return;
+
+            if (index == 1) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChatListHostScreen(
+                    hostId: FirebaseAuth.instance.currentUser!.uid,
+                  ),
+                ),
+              );
+            }
+
+            if (index == 2) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const HostProfileScreen(),
+                ),
+              );
+            }
+          },
+        ),
+
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+
+        floatingActionButton: Padding(
+          padding: const EdgeInsets.only(bottom: 5),
+          child: SizedBox(
+            width: MediaQuery.of(context).size.width - 40,
+            child: _AddApartmentButton(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AddApartmentScreen(),
+                ),
+              ),
             ),
           ),
         ),
       ),
-    ),
-  ),
-);
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  //  STATS GRID  — 2×2 animated tap-scale cards
+  //  STATS GRID  — 2×2 cards with controller-driven scale animation
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildStatsGrid(
     BuildContext context, {
     required int total,
     required int active,
-    required int inquiriesTotal,
   }) {
     final cards = [
       _StatCardData(
-        index:   0,
-        icon:    Icons.apartment_rounded,
-        color:   const Color(0xFF3B82F6),
-        number:  total.toString(),
-        label:   'Total Apartments',
+        index:  0,
+        icon:   Icons.apartment_rounded,
+        color:  const Color(0xFF3B82F6),
+        number: total.toString(),
+        label:  'Total Apartments',
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => AllApartmentsScreen()),
         ),
       ),
       _StatCardData(
-        index:   1,
-        icon:    Icons.home_rounded,
-        color:   AppColors.primaryOrange,
-        number:  active.toString(),
-        label:   'My Apartments',
+        index:  1,
+        icon:   Icons.home_rounded,
+        color:  AppColors.primaryOrange,
+        number: active.toString(),
+        label:  'My Apartments',
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => ActiveApartmentsScreen()),
         ),
       ),
       _StatCardData(
-        index:   2,
-        icon:    Icons.payments_rounded,
-        color:   const Color(0xFF10B981),
-        number:  '₱',
-        label:   'Revenue',
+        index:  2,
+        icon:   Icons.payments_rounded,
+        color:  const Color(0xFF10B981),
+        number: '₱',
+        label:  'Revenue',
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => RevenuePage()),
         ),
       ),
-      _StatCardData(
-        index:   3,
-        icon:    Icons.chat_bubble_rounded,
-        color:   const Color(0xFF8B5CF6),
-        number:  inquiriesTotal.toString(),
-        label:   'Inquiries',
-        onTap:   null,
-      ),
+      // ── CHANGED: Inquiries → Reviews ──────────────────────────────────────
+_StatCardData(
+  index:  3,
+  icon:   Icons.star_rounded,
+  color:  const Color(0xFFF5A623),
+  number: '★',
+  label:  'Reviews',
+  onTap: () => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const HostReviewsScreen(),
+    ),
+  ),
+),
     ];
 
     return GridView.count(
-      shrinkWrap:  true,
-      physics:     const NeverScrollableScrollPhysics(),
-      crossAxisCount:   2,
+      shrinkWrap:      true,
+      physics:         const NeverScrollableScrollPhysics(),
+      crossAxisCount:  2,
       crossAxisSpacing: 14,
       mainAxisSpacing:  14,
       childAspectRatio: 1.05,
-      children: cards.map((data) => GestureDetector(
-        onTapDown:   (_) { _onCardDown(data.index); HapticFeedback.lightImpact(); },
-        onTapUp:     (_) { _onCardUp(data.index);   data.onTap?.call(); },
-        onTapCancel: ()  { _onCardUp(data.index); },
-        child: AnimatedScale(
-          scale:    _cardScale[data.index],
-          duration: const Duration(milliseconds: 130),
-          curve:    Curves.easeOut,
-          child: _StatCard(data: data),
-        ),
-      )).toList(),
+      children: cards.map((data) {
+        return GestureDetector(
+          // FIX: All callbacks are safe — they only call controller methods,
+          // never setState, so they cannot trigger a build-phase conflict.
+          onTapDown:   (_) => _onCardDown(data.index),
+          onTapUp:     (_) => _onCardUp(data.index, data.onTap),
+          onTapCancel: ()  => _onCardCancel(data.index),
+          // Also handle long-press release safely
+          onLongPressEnd: (_) => _onCardCancel(data.index),
+          child: AnimatedBuilder(
+            animation: _cardScaleAnim[data.index],
+            builder: (context, child) => Transform.scale(
+              scale: _cardScaleAnim[data.index].value,
+              child: child,
+            ),
+            child: _StatCard(data: data),
+          ),
+        );
+      }).toList(),
     );
   }
 }
@@ -373,7 +415,6 @@ class _HeroHeader extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // eyebrow
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
@@ -408,9 +449,9 @@ class _HeroHeader extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
+                      const Text(
                         "Here's your latest overview",
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 13.5, color: AppColors.textMid),
                       ),
                     ],
@@ -493,11 +534,11 @@ class _QuickStat extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
       decoration: BoxDecoration(
-        color:         isDark
+        color: isDark
             ? AppColors.darkCardSoft.withOpacity(.55)
             : Colors.white.withOpacity(.70),
         borderRadius: BorderRadius.circular(16),
-        border:        Border.all(
+        border: Border.all(
             color: isDark
                 ? AppColors.darkCardSoft
                 : AppColors.border.withOpacity(.6),
@@ -532,11 +573,11 @@ class _QuickStat extends StatelessWidget {
 // ═════════════════════════════════════════════════════════════════════════════
 
 class _StatCardData {
-  final int          index;
-  final IconData     icon;
-  final Color        color;
-  final String       number;
-  final String       label;
+  final int           index;
+  final IconData      icon;
+  final Color         color;
+  final String        number;
+  final String        label;
   final VoidCallback? onTap;
 
   const _StatCardData({
@@ -561,17 +602,27 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tappable = data.onTap != null;
 
+    // Special glow for Reviews card (index 3)
+    final isReviews = data.index == 3;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color:         AppColors.card(context),
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(22),
-        border:        Border.all(color: AppColors.border.withOpacity(.6)),
+        border: Border.all(
+          color: isReviews
+              ? AppColors.primaryOrange.withOpacity(.25)
+              : AppColors.border.withOpacity(.6),
+        ),
         boxShadow: [
           BoxShadow(
-              color:      Colors.black.withOpacity(.05),
-              blurRadius: 18,
-              offset:     const Offset(0, 6)),
+            color: isReviews
+                ? AppColors.primaryOrange.withOpacity(.12)
+                : Colors.black.withOpacity(.05),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
         ],
       ),
       child: Column(
@@ -585,17 +636,32 @@ class _StatCard extends StatelessWidget {
                 width:  44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color:         data.color.withOpacity(.12),
+                  // Reviews card gets a warm gradient badge
+                  gradient: isReviews
+                      ? const LinearGradient(
+                          colors: [
+                            Color(0xFFF5A623),
+                            Color(0xFFFFCA6C),
+                          ],
+                          begin: Alignment.topLeft,
+                          end:   Alignment.bottomRight,
+                        )
+                      : null,
+                  color: isReviews ? null : data.color.withOpacity(.12),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(data.icon, color: data.color, size: 22),
+                child: Icon(
+                  data.icon,
+                  color: isReviews ? Colors.white : data.color,
+                  size:  22,
+                ),
               ),
               if (tappable)
                 Container(
                   width:  28,
                   height: 28,
                   decoration: BoxDecoration(
-                    color:         data.color.withOpacity(.10),
+                    color:  data.color.withOpacity(.10),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(Icons.arrow_forward_rounded,
@@ -606,17 +672,33 @@ class _StatCard extends StatelessWidget {
 
           const Spacer(),
 
-          Text(
-            data.number,
-            style: TextStyle(
-              fontSize:      26,
-              fontWeight:    FontWeight.w900,
-              color:         AppColors.text(context),
-              letterSpacing: -.5,
-              height:        1.0,
+          // Reviews card shows a star rating display instead of a plain number
+          if (isReviews) ...[
+            Row(
+              children: List.generate(5, (i) => Padding(
+                padding: const EdgeInsets.only(right: 2),
+                child: Icon(
+                  i < 4 ? Icons.star_rounded : Icons.star_half_rounded,
+                  size:  16,
+                  color: AppColors.primaryOrange,
+                ),
+              )),
             ),
-          ),
-          const SizedBox(height: 4),
+            const SizedBox(height: 4),
+          ] else ...[
+            Text(
+              data.number,
+              style: TextStyle(
+                fontSize:      26,
+                fontWeight:    FontWeight.w900,
+                color:         AppColors.text(context),
+                letterSpacing: -.5,
+                height:        1.0,
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+
           Text(
             data.label,
             style: const TextStyle(
@@ -635,6 +717,21 @@ class _StatCard extends StatelessWidget {
               ),
             ),
           ],
+
+          // Reviews card bottom accent
+          if (isReviews) ...[
+            const SizedBox(height: 10),
+            Container(
+              height: 3,
+              width:  32,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.primaryOrange, Color(0xFFFFCA6C)],
+                ),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -646,8 +743,8 @@ class _StatCard extends StatelessWidget {
 // ═════════════════════════════════════════════════════════════════════════════
 
 class _SectionHeader extends StatelessWidget {
-  final String    title;
-  final String    action;
+  final String       title;
+  final String       action;
   final VoidCallback onAction;
   const _SectionHeader({
     required this.title,
@@ -706,7 +803,7 @@ class _RecentListings extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border:        Border.all(color: AppColors.border),
         ),
-        child: Column(children: const [
+        child: const Column(children: [
           Icon(Icons.apartment_outlined,
               size: 36, color: AppColors.textLight),
           SizedBox(height: 8),
@@ -732,11 +829,11 @@ class _RecentListings extends StatelessWidget {
       ),
       child: Column(
         children: List.generate(docs.length, (i) {
-          final data   = docs[i].data() as Map<String, dynamic>;
-          final name   = data['name']    ?? 'Unnamed';
-          final addr   = data['address'] ?? 'No location';
+          final data     = docs[i].data() as Map<String, dynamic>;
+          final name     = data['name']     ?? 'Unnamed';
+          final addr     = data['address']  ?? 'No location';
           final isActive = (data['isActive'] ?? false) == true;
-          final isLast = i == docs.length - 1;
+          final isLast   = i == docs.length - 1;
 
           return Column(children: [
             _ListingRow(
@@ -774,12 +871,11 @@ class _ListingRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       child: Row(children: [
 
-        // icon
         Container(
           width:  44,
           height: 44,
           decoration: BoxDecoration(
-            color:         isActive
+            color: isActive
                 ? AppColors.primaryOrange.withOpacity(.10)
                 : AppColors.border.withOpacity(.5),
             borderRadius: BorderRadius.circular(13),
@@ -793,7 +889,6 @@ class _ListingRow extends StatelessWidget {
 
         const SizedBox(width: 12),
 
-        // text
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -827,7 +922,6 @@ class _ListingRow extends StatelessWidget {
 
         const SizedBox(width: 8),
 
-        // status badge
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
@@ -841,7 +935,7 @@ class _ListingRow extends StatelessWidget {
               width:  6,
               height: 6,
               decoration: BoxDecoration(
-                color:  isActive
+                color: isActive
                     ? const Color(0xFF10B981)
                     : AppColors.textLight,
                 shape: BoxShape.circle,
@@ -878,18 +972,43 @@ class _AddApartmentButton extends StatefulWidget {
   State<_AddApartmentButton> createState() => _AddApartmentButtonState();
 }
 
-class _AddApartmentButtonState extends State<_AddApartmentButton> {
-  double _scale = 1.0;
+class _AddApartmentButtonState extends State<_AddApartmentButton>
+    with SingleTickerProviderStateMixin {
+  // FIX: Use AnimationController here too for consistency and safety.
+  late final AnimationController _ctrl;
+  late final Animation<double>   _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      reverseDuration: const Duration(milliseconds: 180),
+    );
+    _scaleAnim = Tween<double>(begin: 1.0, end: 0.97).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown:   (_) { setState(() => _scale = .97); HapticFeedback.lightImpact(); },
-      onTapUp:     (_) { setState(() => _scale = 1.0); widget.onTap(); },
-      onTapCancel: ()  { setState(() => _scale = 1.0); },
-      child: AnimatedScale(
-        scale:    _scale,
-        duration: const Duration(milliseconds: 120),
+      onTapDown:   (_) { HapticFeedback.lightImpact(); _ctrl.forward(); },
+      onTapUp:     (_) { _ctrl.reverse().then((_) => widget.onTap()); },
+      onTapCancel: ()  { _ctrl.reverse(); },
+      child: AnimatedBuilder(
+        animation: _scaleAnim,
+        builder: (context, child) => Transform.scale(
+          scale: _scaleAnim.value,
+          child: child,
+        ),
         child: Container(
           height: 60,
           width:  double.infinity,
@@ -908,17 +1027,17 @@ class _AddApartmentButtonState extends State<_AddApartmentButton> {
               ),
             ],
           ),
-          child: Row(
+          child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
+            children: [
               Icon(Icons.add_circle_rounded, color: Colors.white, size: 22),
               SizedBox(width: 10),
               Text(
                 'Add Apartment',
                 style: TextStyle(
-                  color:      Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize:   16,
+                  color:         Colors.white,
+                  fontWeight:    FontWeight.w800,
+                  fontSize:      16,
                   letterSpacing: -.2,
                 ),
               ),
