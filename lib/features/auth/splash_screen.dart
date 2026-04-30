@@ -5,6 +5,7 @@ import '../../services/biometric_service.dart';
 import '../auth/auth_screen.dart';
 import '../home/main_shell.dart';
 import '../../core/app_colors.dart';
+import '../../core/location_service.dart';
 import '../onboarding/onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -23,6 +24,8 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
 Future<void> _startApp() async {
+
+  await LocationService.detectLocation();
 
   await Future.delayed(const Duration(milliseconds: 800));
 

@@ -34,7 +34,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
     with TickerProviderStateMixin {
 
   // ── original logic (unchanged) ─────────────────────────────────────────────
-  String get uid => FirebaseAuth.instance.currentUser!.uid;
+  String? get uid => FirebaseAuth.instance.currentUser?.uid;
 
   // ── staggered section animations ──────────────────────────────────────────
   late final List<AnimationController> _ctrl;

@@ -251,7 +251,7 @@ Widget build(BuildContext context) {
     final checkOut      = d['checkOut'];
     final amount        = d['amountPaid'];
     final bookingStatus = (d['bookingStatus'] ?? 'pending').toString();
-    final paymentStatus = (d['paymentStatus'] ?? 'unpaid').toString();
+    String paymentStatus = (d['paymentStatus'] ?? 'unpaid').toString();
     final nights        = _nights(checkIn, checkOut);
     final isCancelled   = bookingStatus.toLowerCase() == 'cancelled';
     final hasReview = (d['hasReview'] ?? false) as bool;
@@ -262,6 +262,28 @@ Widget build(BuildContext context) {
     final stayTotal = d['stayTotal'] ?? 0;
     final remainingBalance = d['remainingBalance'] ?? 0;
     final pricingMode = d['pricingMode'] ?? 'daily';
+
+// Fix payment status logic
+if (pricingMode == "monthly") {
+  if (remainingBalance <= 0) {
+    paymentStatus = "paid";
+  } else if (remainingBalance < stayTotal) {
+    paymentStatus = "partial";
+  } else {
+    paymentStatus = "unpaid";
+  }
+}
+
+// Daily bookings are always fully paid upfront
+if (pricingMode == "daily") {
+  if (amount != null && amount >= stayTotal) {
+    paymentStatus = "paid";
+  } else if (amount != null && amount > 0) {
+    paymentStatus = "partial";
+  } else {
+    paymentStatus = "unpaid";
+  }
+}
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
@@ -396,33 +418,33 @@ Widget build(BuildContext context) {
                     child: Column(
   children: [
 
-    if (pricingMode == "monthly") ...[
+// MONTHLY SUMMARY
+if (pricingMode == "monthly") ...[
+  _PaymentRow("Monthly Rent", _fmtPrice(monthlyRent)),
+  _PaymentRow("Security Deposit", _fmtPrice(securityDeposit)),
+  _PaymentRow("Service Fee", _fmtPrice(serviceFee)),
 
-      _PaymentRow("Monthly Rent", _fmtPrice(monthlyRent)),
-      _PaymentRow("Security Deposit", _fmtPrice(securityDeposit)),
-      _PaymentRow("Service Fee", _fmtPrice(serviceFee)),
+  const SizedBox(height: 12),
+  const Divider(height: 1),
 
-      const SizedBox(height: 12),
-      const Divider(height: 1),
+  _PaymentRow("Paid First Month", _fmtPrice(totalDueToday), highlight: true),
 
-      _PaymentRow(
-        "Paid First Month",
-        _fmtPrice(totalDueToday),
-        highlight: true,
-      ),
+  const SizedBox(height: 10),
 
-      const SizedBox(height: 10),
+  _PaymentRow("Remaining Balance", _fmtPrice(remainingBalance)),
+  _PaymentRow("Total Stay Cost", _fmtPrice(stayTotal)),
+],
 
-      _PaymentRow(
-        "Remaining Balance",
-        _fmtPrice(remainingBalance),
-      ),
 
-      _PaymentRow(
-        "Total Stay Cost",
-        _fmtPrice(stayTotal),
-      ),
-    ],
+// DAILY SUMMARY
+if (pricingMode == "daily") ...[
+  _PaymentRow("Price per Night", _fmtPrice(d['pricePerNight'] ?? 0)),
+  _PaymentRow("Number of Nights", nights.toString()),
+  const SizedBox(height: 12),
+  const Divider(height: 1),
+  _PaymentRow("Total Stay Cost", _fmtPrice(stayTotal), highlight: true),
+  _PaymentRow("Amount Paid", _fmtPrice(amount ?? 0)),
+],
 
     const SizedBox(height: 12),
     const Divider(height: 1),
@@ -509,34 +531,48 @@ child: Text(
                   const SizedBox(height: 32),
 
 if (!isCancelled) ...[
-  if (paymentStatus.toLowerCase() == 'paid') ...[
-    if (hasReview)
-      const _ReviewSubmittedBadge()
-    else
-      _ReviewButton(
-        onTap: () async {
-          final submitted = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ReviewPage(
-                bookingId: widget.bookingId,
-                data: d,
-              ),
-            ),
-          );
+  Builder(
+    builder: (context) {
+      final createdAt = d['createdAt'] as Timestamp?;
+      bool canCancel = false;
 
-          // Firestore stream will auto update hasReview
-          if (submitted == true) {
-            // nothing needed, StreamBuilder will rebuild
-          }
-        },
-      ),
-  ] else ...[
-    _CancelButton(
-      cancelling: _cancelling,
-      onTap: _cancelBooking,
-    ),
-  ],
+      if (createdAt != null) {
+        final bookingTime = createdAt.toDate();
+        canCancel = DateTime.now().difference(bookingTime).inHours <= 24;
+      }
+
+      // PRIORITY: If still within 24h → show cancel button
+      if (canCancel) {
+        return _CancelButton(
+          cancelling: _cancelling,
+          onTap: _cancelBooking,
+        );
+      }
+
+      // After 24h → show review if paid
+      if (paymentStatus.toLowerCase() == 'paid') {
+        if (hasReview) {
+          return const _ReviewSubmittedBadge();
+        } else {
+          return _ReviewButton(
+            onTap: () async {
+              final submitted = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ReviewPage(
+                    bookingId: widget.bookingId,
+                    data: d,
+                  ),
+                ),
+              );
+            },
+          );
+        }
+      }
+
+      return const SizedBox();
+    },
+  ),
 
   const SizedBox(height: 12),
 

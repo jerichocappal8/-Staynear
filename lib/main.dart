@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:flutter_stripe/flutter_stripe.dart';
 
@@ -12,6 +13,7 @@ import 'core/settings_prefs.dart';
 import 'core/settings_controller.dart';
 import 'core/location_service.dart';
 
+
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/home/main_shell.dart';
 import 'features/auth/auth_screen.dart';
@@ -20,38 +22,27 @@ import 'features/auth/auth_gate.dart';
 
 import '../../l10n/app_localizations.dart';
 Future<void> main() async {
-
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ─────────────────────────────────────────
-  // Initialize settings
-  // ─────────────────────────────────────────
   await SettingsPrefs.init();
   settingsController.loadFromPrefs();
 
-  // ─────────────────────────────────────────
-  // Initialize Firebase
-  // ─────────────────────────────────────────
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // ─────────────────────────────────────────
-  // Initialize Stripe
-  // ─────────────────────────────────────────
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+  );
+
   Stripe.publishableKey =
       "pk_test_51TA7mDEF3hIooLTXxM34PAOAsfUUukr2zuHNzvbmdnmuomGC6dPpxXTuujpWuVz23CCwhsdm982edsFr9BMyqCMc00EkZZ4hvO";
 
   await Stripe.instance.applySettings();
 
-  // ─────────────────────────────────────────
-  // Detect location ONCE for the entire app
-  // ─────────────────────────────────────────
-  await LocationService.detectLocation();
+  // ❌ REMOVE THIS
+  // await LocationService.detectLocation();
 
-  // ─────────────────────────────────────────
-  // Run app
-  // ─────────────────────────────────────────
   runApp(const StayNearApp());
 }
 

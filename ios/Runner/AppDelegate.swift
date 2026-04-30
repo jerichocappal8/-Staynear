@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import GoogleMaps
 import Stripe
+import Firebase
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -10,6 +11,8 @@ import Stripe
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+
+      FirebaseApp.configure()
 
     // 🔥 Google Maps API key
     GMSServices.provideAPIKey("AIzaSyD0yiq58kkUZUe2ViSnmleGOxe9T5tPFTc")
