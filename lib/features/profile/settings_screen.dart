@@ -983,6 +983,18 @@ class PrivacySecurityPage extends StatefulWidget {
 class _PrivacySecurityPageState extends State<PrivacySecurityPage> {
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const _InnerPage(title: 'Privacy & Security', body: Center(
+
+  child: Text(
+
+    'Please log in to continue.',
+
+    style: TextStyle(fontSize: 16),
+
+  ),
+
+));
     return _InnerPage(
       title: 'Privacy & Security',
       body: ListView(
@@ -992,7 +1004,7 @@ class _PrivacySecurityPageState extends State<PrivacySecurityPage> {
 StreamBuilder<DocumentSnapshot>(
   stream: FirebaseFirestore.instance
       .collection('users')
-      .doc(FirebaseAuth.instance.currentUser!.uid)
+      .doc(uid)
       .snapshots(),
   builder: (context, snapshot) {
 
@@ -1026,6 +1038,13 @@ StreamBuilder<DocumentSnapshot>(
             ),
           );
         },
+      ),
+
+      _SettingsTile(
+        icon: Icons.lock_reset_rounded,
+        iconColor: const Color(0xFF10B981),
+        title: 'Forgot Password',
+        onTap: () => _sendPasswordReset(context),
       ),
 
       /// SHOW ONLY IF 2FA ENABLED
@@ -1096,6 +1115,37 @@ StreamBuilder<DocumentSnapshot>(
       ),
     );
   }
+
+Future<void> _sendPasswordReset(BuildContext context) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null || user.email == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No email address found for this account.'),
+          backgroundColor: Colors.red),
+    );
+    return;
+  }
+
+  try {
+    await FirebaseAuth.instance.sendPasswordResetEmail(email: user.email!);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Password reset link sent to ${user.email}'),
+        backgroundColor: AppColors.primaryOrange,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Failed to send reset email: $e'),
+          backgroundColor: Colors.red),
+    );
+  }
+}
 
 void _showDeleteDialog(BuildContext context) {
   final passwordController = TextEditingController();
@@ -1198,14 +1248,16 @@ void _showDeleteDialog(BuildContext context) {
 
               await user.reauthenticateWithCredential(credential);
 
-              /// DELETE FIREBASE AUTH USER
-              await user.delete();
-
-              /// DELETE FIRESTORE USER DATA
+              /// DELETE FIRESTORE USER DATA FIRST
+              /// Security rules require request.auth, which is gone after
+              /// Firebase Auth deletes the user.
               await FirebaseFirestore.instance
                   .collection('users')
                   .doc(uid)
                   .delete();
+
+              /// DELETE FIREBASE AUTH USER
+              await user.delete();
 
               if (!context.mounted) return;
 

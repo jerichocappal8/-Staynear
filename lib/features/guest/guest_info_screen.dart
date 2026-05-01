@@ -34,6 +34,7 @@ class _GuestInfoScreenState extends State<GuestInfoScreen> {
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl  = TextEditingController();
   final _emailCtrl     = TextEditingController();
+  final _phoneCtrl     = TextEditingController();
   final _requestsCtrl  = TextEditingController();
 
   // ── Daily state ───────────────────────────────────────────────────────────
@@ -67,6 +68,7 @@ class _GuestInfoScreenState extends State<GuestInfoScreen> {
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _emailCtrl.dispose();
+    _phoneCtrl.dispose();
     _requestsCtrl.dispose();
     super.dispose();
   }
@@ -140,6 +142,7 @@ class _GuestInfoScreenState extends State<GuestInfoScreen> {
       firstName:       _firstNameCtrl.text.trim(),
       lastName:        _lastNameCtrl.text.trim(),
       email:           _emailCtrl.text.trim(),
+      phone:           _phoneCtrl.text.trim(),
       checkInDate:     checkIn,
       checkOutDate:    checkOut,
       roomsCount:      1,
@@ -195,6 +198,7 @@ class _GuestInfoScreenState extends State<GuestInfoScreen> {
                       firstNameCtrl: _firstNameCtrl,
                       lastNameCtrl:  _lastNameCtrl,
                       emailCtrl:     _emailCtrl,
+                      phoneCtrl:     _phoneCtrl,
                     ),
                     const SizedBox(height: 20),
 
@@ -870,11 +874,13 @@ class _GuestInfoCard extends StatelessWidget {
   final TextEditingController firstNameCtrl;
   final TextEditingController lastNameCtrl;
   final TextEditingController emailCtrl;
+  final TextEditingController phoneCtrl;
 
   const _GuestInfoCard({
     required this.firstNameCtrl,
     required this.lastNameCtrl,
     required this.emailCtrl,
+    required this.phoneCtrl,
   });
 
   @override
@@ -889,8 +895,12 @@ class _GuestInfoCard extends StatelessWidget {
                   label:              'First Name',
                   controller:         firstNameCtrl,
                   hint:               'First Name',
-                  validator:          _required,
+                  validator:          _validateName,
                   textCapitalization: TextCapitalization.words,
+                  inputFormatters:    [
+                    // Literal space only — \s also matches tabs/newlines
+                    FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z \-']")),
+                  ],
                 ),
               ),
               const SizedBox(width: 12),
@@ -899,8 +909,11 @@ class _GuestInfoCard extends StatelessWidget {
                   label:              'Last Name',
                   controller:         lastNameCtrl,
                   hint:               'Last Name',
-                  validator:          _required,
+                  validator:          _validateName,
                   textCapitalization: TextCapitalization.words,
+                  inputFormatters:    [
+                    FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z \-']")),
+                  ],
                 ),
               ),
             ],
@@ -914,13 +927,35 @@ class _GuestInfoCard extends StatelessWidget {
             prefixIcon:   Icons.email_outlined,
             validator:    _validateEmail,
           ),
+          const SizedBox(height: 16),
+          _LabeledField(
+            label:        'Phone Number',
+            controller:   phoneCtrl,
+            hint:         '09XXXXXXXXX',
+            keyboardType: TextInputType.number,
+            prefixIcon:   Icons.phone_outlined,
+            validator:    _validatePhone,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(11),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  static String? _required(String? v) =>
-      (v == null || v.trim().isEmpty) ? 'Required' : null;
+  static String? _validateName(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Required';
+    if (!RegExp(r"^[a-zA-Z '\-]+$").hasMatch(v.trim())) return 'Letters only';
+    return null;
+  }
+
+  static String? _validatePhone(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Required';
+    if (!RegExp(r'^09\d{9}$').hasMatch(v.trim())) return 'Enter a valid PH number (09XXXXXXXXX)';
+    return null;
+  }
 
   static String? _validateEmail(String? v) {
     if (v == null || v.trim().isEmpty) return 'Required';
@@ -973,13 +1008,14 @@ class _SpecialRequestsCard extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _LabeledField extends StatelessWidget {
-  final String                     label;
-  final TextEditingController      controller;
-  final String                     hint;
-  final TextInputType              keyboardType;
-  final IconData?                  prefixIcon;
-  final String? Function(String?)? validator;
-  final TextCapitalization         textCapitalization;
+  final String                       label;
+  final TextEditingController        controller;
+  final String                       hint;
+  final TextInputType                keyboardType;
+  final IconData?                    prefixIcon;
+  final String? Function(String?)?   validator;
+  final TextCapitalization           textCapitalization;
+  final List<TextInputFormatter>?    inputFormatters;
 
   const _LabeledField({
     required this.label,
@@ -989,6 +1025,7 @@ class _LabeledField extends StatelessWidget {
     this.prefixIcon,
     this.validator,
     this.textCapitalization = TextCapitalization.none,
+    this.inputFormatters,
   });
 
   @override
@@ -1011,6 +1048,7 @@ class _LabeledField extends StatelessWidget {
           keyboardType:       keyboardType,
           textCapitalization: textCapitalization,
           validator:          validator,
+          inputFormatters:    inputFormatters,
           style: TextStyle(
             fontSize:   14,
             fontWeight: FontWeight.w600,

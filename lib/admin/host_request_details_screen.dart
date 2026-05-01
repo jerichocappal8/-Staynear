@@ -66,7 +66,17 @@ class _HostRequestDetailsScreenState extends State<HostRequestDetailsScreen>
       );
       batch.update(
         FirebaseFirestore.instance.collection('users').doc(widget.userId),
-        {'hostRequest': 'approved', 'role': 'host'},
+        {'hostRequest': 'approved', 'role': 'host', 'isHost': true},
+      );
+      batch.set(
+        FirebaseFirestore.instance.collection('hosts').doc(widget.userId),
+        {
+          'userId': widget.userId,
+          'rating': 0,
+          'totalListings': 0,
+          'createdAt': now,
+        },
+        SetOptions(merge: true),
       );
 
       await batch.commit();
@@ -75,7 +85,7 @@ class _HostRequestDetailsScreenState extends State<HostRequestDetailsScreen>
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted) _showResultSnackbar('Error: $e', isError: true);
+      if (mounted) _showResultSnackbar('Action failed. Please try again.', isError: true);
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
@@ -102,7 +112,7 @@ class _HostRequestDetailsScreenState extends State<HostRequestDetailsScreen>
       );
       batch.update(
         FirebaseFirestore.instance.collection('users').doc(widget.userId),
-        {'hostRequest': 'rejected'},
+        {'hostRequest': 'rejected', 'role': 'user', 'isHost': false},
       );
 
       await batch.commit();
@@ -111,7 +121,7 @@ class _HostRequestDetailsScreenState extends State<HostRequestDetailsScreen>
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted) _showResultSnackbar('Error: $e', isError: true);
+      if (mounted) _showResultSnackbar('Action failed. Please try again.', isError: true);
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }

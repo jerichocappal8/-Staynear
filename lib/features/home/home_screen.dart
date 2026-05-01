@@ -314,8 +314,6 @@ Widget _searchBar() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // FIX: removed const from TextStyle (uses context), removed Theme
-        // ternary + duplicate backgroundColor: prefix
         Text(title,
             style: TextStyle(
               fontSize: 18,
@@ -323,11 +321,19 @@ Widget _searchBar() {
               color: AppColors.text(context),
               letterSpacing: -0.3,
             )),
-        Text("See all",
-            style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primaryOrange)),
+        GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => SearchResultsScreen(filters: const {}),
+            ),
+          ),
+          child: Text("See all",
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primaryOrange)),
+        ),
       ],
     );
   }

@@ -2,7 +2,7 @@ import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import sgMail from "@sendgrid/mail";
 import { defineSecret } from "firebase-functions/params";
-import { onCall } from "firebase-functions/v2/https";
+import { HttpsError, onCall } from "firebase-functions/v2/https";
 import Stripe from "stripe";
 
 admin.initializeApp();
@@ -353,11 +353,15 @@ export const createPaymentIntent = onCall(
 },
 async (request) => {
 
-  const stripe = new Stripe(stripeSecret.value());
-  const amount = request.data.amount;
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in is required.");
+  }
 
-  if (!amount) {
-    throw new Error("Amount is required");
+  const stripe = new Stripe(stripeSecret.value());
+  const amount = Number(request.data.amount);
+
+  if (!Number.isInteger(amount) || amount <= 0) {
+    throw new HttpsError("invalid-argument", "A valid amount is required.");
   }
 
   const paymentIntent = await stripe.paymentIntents.create({

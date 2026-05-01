@@ -24,6 +24,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/app_colors.dart';
@@ -90,10 +91,17 @@ class _RevenueData {
 
 Future<_RevenueData> _loadRevenueData() async {
   final fs = FirebaseFirestore.instance;
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    return const _RevenueData(
+        totalRevenue: 0, byApartment: [], recent: []);
+  }
 
   // 1. Fetch successful payments
   final paySnap = await fs
       .collection('payments')
+      .where('hostId', isEqualTo: user.uid)
       .where('status', isEqualTo: 'success')
       .orderBy('createdAt', descending: true)
       .get();
@@ -118,6 +126,7 @@ Future<_RevenueData> _loadRevenueData() async {
         i, math.min(i + 30, idList.length));
     final snap = await fs
         .collection('bookings')
+        .where('hostId', isEqualTo: user.uid)
         .where(FieldPath.documentId, whereIn: chunk)
         .get();
     for (final doc in snap.docs) {
@@ -266,7 +275,7 @@ class _RevenuePageState extends State<RevenuePage>
             );
           }
           if (snap.hasError) {
-            return _ErrorState(error: snap.error.toString());
+            return const _ErrorState(error: 'Please check your connection and try again.');
           }
           final data = snap.data!;
           if (data.totalRevenue == 0 && data.byApartment.isEmpty) {

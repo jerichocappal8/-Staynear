@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:staynear/core/app_colors.dart';
 import 'tenant_list_screen.dart';
 
@@ -210,10 +211,14 @@ class _OccupancySummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const Text("");
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('room_occupancy')
           .where('apartmentId', isEqualTo: propertyId)
+          .where('hostId', isEqualTo: uid)
           .snapshots(),
       builder: (context, snap) {
         final all = snap.data?.docs ?? [];
@@ -242,10 +247,14 @@ class _RoomsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox.shrink();
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('room_occupancy')
           .where('apartmentId', isEqualTo: propertyId)
+          .where('hostId', isEqualTo: uid)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {

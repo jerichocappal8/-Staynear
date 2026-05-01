@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../core/auth_helper.dart';
 import 'host_application_screen.dart';
 import 'host_status_screen.dart';
 

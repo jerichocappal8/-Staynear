@@ -197,7 +197,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error loading data: $e')));
+            .showSnackBar(const SnackBar(content: Text('Failed to load your details. Please try again.')));
       }
     } finally {
       if (mounted) {
@@ -219,13 +219,21 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen>
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
+      final first  = _firstNameController.text.trim();
+      final middle = _middleNameController.text.trim();
+      final last   = _lastNameController.text.trim();
+      final fullName = [first, if (middle.isNotEmpty) middle, last]
+          .where((s) => s.isNotEmpty)
+          .join(' ');
+
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .set({
-        'firstName':  _firstNameController.text.trim(),
-        'middleName': _middleNameController.text.trim(),
-        'lastName':   _lastNameController.text.trim(),
+        'firstName':  first,
+        'middleName': middle,
+        'lastName':   last,
+        'name':       fullName,
         'phone':      _phoneController.text.trim(),
         'street':     _streetController.text.trim(),
         'barangay':   _selectedBarangay ?? '',
@@ -249,7 +257,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error saving data: $e')));
+            .showSnackBar(const SnackBar(content: Text('Failed to save changes. Please try again.')));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -368,10 +376,15 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen>
                             style: TextStyle(
                                 fontSize: 14, color: AppColors.text(context)),
                             decoration: _fieldDecoration('First Name'),
-                            validator: (v) =>
-                                (v == null || v.trim().isEmpty)
-                                    ? 'First name is required'
-                                    : null,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                  RegExp(r"[a-zA-Z '\-]")),
+                            ],
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return 'First name is required';
+                              if (!RegExp(r"^[a-zA-Z '\-]+$").hasMatch(v.trim())) return 'Letters only';
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
@@ -380,6 +393,15 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen>
                                 fontSize: 14, color: AppColors.text(context)),
                             decoration: _fieldDecoration(
                                 'Middle Name (optional)'),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                  RegExp(r"[a-zA-Z '\-]")),
+                            ],
+                            validator: (v) {
+                              if (v != null && v.trim().isNotEmpty &&
+                                  !RegExp(r"^[a-zA-Z '\-]+$").hasMatch(v.trim())) return 'Letters only';
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
@@ -387,10 +409,15 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen>
                             style: TextStyle(
                                 fontSize: 14, color: AppColors.text(context)),
                             decoration: _fieldDecoration('Last Name'),
-                            validator: (v) =>
-                                (v == null || v.trim().isEmpty)
-                                    ? 'Last name is required'
-                                    : null,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                  RegExp(r"[a-zA-Z '\-]")),
+                            ],
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return 'Last name is required';
+                              if (!RegExp(r"^[a-zA-Z '\-]+$").hasMatch(v.trim())) return 'Letters only';
+                              return null;
+                            },
                           ),
                         ],
                       ),
@@ -406,13 +433,18 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen>
                             controller: _phoneController,
                             style: TextStyle(
                                 fontSize: 14, color: AppColors.text(context)),
-                            decoration: _fieldDecoration('Phone Number',
+                            decoration: _fieldDecoration('Phone Number (09XXXXXXXXX)',
                                 icon: Icons.phone_outlined),
-                            keyboardType: TextInputType.phone,
-                            validator: (v) =>
-                                (v == null || v.trim().isEmpty)
-                                    ? 'Phone number is required'
-                                    : null,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(11),
+                            ],
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return 'Phone number is required';
+                              if (!RegExp(r'^(09)\d{9}$').hasMatch(v.trim())) return 'Enter a valid PH number (09XXXXXXXXX)';
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 12),
                           TextFormField(

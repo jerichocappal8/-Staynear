@@ -7,10 +7,12 @@ import 'presentation/property_management_screen.dart';
 class ActiveApartmentsScreen extends StatelessWidget {
   const ActiveApartmentsScreen({super.key});
 
-  String get uid => FirebaseAuth.instance.currentUser!.uid;
-
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return const Scaffold(body: Center(child: Text('Please log in to view your listings.')));
+    }
     final stream = FirebaseFirestore.instance
         .collection('properties')
         .where('ownerId', isEqualTo: uid)
@@ -474,10 +476,14 @@ class _OccupiedCountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox.shrink();
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('room_occupancy')
           .where('apartmentId', isEqualTo: propertyId)
+          .where('hostId', isEqualTo: uid)
           .where('status', isEqualTo: 'occupied')
           .snapshots(),
       builder: (context, snap) {
@@ -527,10 +533,14 @@ class _OccupancyBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox.shrink();
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('room_occupancy')
           .where('apartmentId', isEqualTo: propertyId)
+          .where('hostId', isEqualTo: uid)
           .snapshots(),
       builder: (context, snap) {
         if (!snap.hasData) return const SizedBox.shrink();

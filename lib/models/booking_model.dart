@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class BookingModel {
+  // This is the document ID from properties/{propertyId}. Existing booking
+  // data calls it apartmentId; payment docs store the same value as propertyId.
   final String apartmentId;
   final String apartmentName;
-  final String apartmentImage;
+  final String? apartmentImage;
 
   final String roomId;
   final String roomName;
@@ -13,6 +15,7 @@ class BookingModel {
 
   final String guestName;
   final String guestEmail;
+  final String guestPhone;
 
   final DateTime checkIn;
   final DateTime checkOut;
@@ -50,6 +53,7 @@ class BookingModel {
       required this.hostId,
     required this.guestName,
     required this.guestEmail,
+    this.guestPhone = '',
     required this.checkIn,
     required this.checkOut,
     required this.pricingMode,
@@ -80,6 +84,7 @@ return {
   "hostId": hostId,
       "guestName": guestName,
       "guestEmail": guestEmail,
+      "guestPhone": guestPhone,
       "checkIn": Timestamp.fromDate(checkIn),
       "checkOut": Timestamp.fromDate(checkOut),
       "pricingMode": pricingMode,

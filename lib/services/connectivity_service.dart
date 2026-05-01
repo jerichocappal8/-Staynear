@@ -8,13 +8,17 @@ class ConnectivityService {
   Stream<bool> get connectionStream => _controller.stream;
 
   ConnectivityService() {
-    _connectivity.onConnectivityChanged.listen((result) {
-      _controller.add(result != ConnectivityResult.none);
+    _connectivity.onConnectivityChanged.listen((results) {
+      _controller.add(_hasConnection(results));
     });
   }
 
   Future<bool> checkConnection() async {
-    var result = await _connectivity.checkConnectivity();
-    return result != ConnectivityResult.none;
+    final results = await _connectivity.checkConnectivity();
+    return _hasConnection(results);
+  }
+
+  bool _hasConnection(List<ConnectivityResult> results) {
+    return results.any((result) => result != ConnectivityResult.none);
   }
 }

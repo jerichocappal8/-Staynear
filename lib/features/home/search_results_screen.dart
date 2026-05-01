@@ -71,6 +71,23 @@ class _SearchResultsScreenState extends State<SearchResultsScreen>
   // ── Fallback map centre (Urdaneta City, Pangasinan) ───────────────────────
   static const LatLng _kCenter = LatLng(15.9754, 120.5710);
 
+  // ── Known city coordinates for initial camera when no results yet ─────────
+  static const Map<String, LatLng> _cityCenters = {
+    'urdaneta city': LatLng(15.9754, 120.5710),
+    'dagupan city':  LatLng(16.0433, 120.3333),
+    'binalonan':     LatLng(15.9991, 120.5877),
+    'mangaldan':     LatLng(16.0662, 120.4045),
+    'san carlos city': LatLng(15.9268, 120.3535),
+    'lingayen':      LatLng(16.0168, 120.2352),
+    'calasiao':      LatLng(16.0191, 120.4221),
+    'malasiqui':     LatLng(15.9197, 120.4152),
+    'alaminos city': LatLng(16.1554, 119.9804),
+    'san fabian':    LatLng(16.1177, 120.3946),
+  };
+
+  // ── Active sort ───────────────────────────────────────────────────────────
+  String _sortMode = 'default'; // 'default' | 'price_asc' | 'price_desc' | 'rating'
+
   // ──────────────────────────────────────────────────────────────────────────
   @override
   void initState() {
@@ -247,6 +264,7 @@ for (final doc in docs) {
         _loading      = false;
         _displayCount = _pageSize;
       });
+      _applySortToResults();
 
       _resultsAnimCtrl.forward(from: 0);
       if (!mounted) return;
@@ -378,8 +396,8 @@ final label = '₱${_comma(price)}$mode';
     final picture = rec.endRecording();
     final image   = await picture.toImage(cw.ceil(), ch.ceil());
     final bytes   = await image.toByteData(format: ui.ImageByteFormat.png);
-
-    return BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
+    if (bytes == null) return BitmapDescriptor.defaultMarker;
+    return BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
   }
 
   void _evictFromCache(String? docId) {
@@ -494,6 +512,7 @@ void _moveCameraToFirst() {
   final ctrl = _mapCtrl;
   if (ctrl == null) return;
 
+  // Try to find the first result with coordinates
   for (final doc in _results) {
     final geo = (doc.data() as Map)['coordinates'] as GeoPoint?;
     if (geo != null) {
@@ -510,10 +529,125 @@ void _moveCameraToFirst() {
       return;
     }
   }
+
+  // Fall back to known city center for the active city filter
+  final cityFilter = _filters['city']?.toString().toLowerCase().trim();
+  if (cityFilter != null && cityFilter.isNotEmpty) {
+    for (final entry in _cityCenters.entries) {
+      if (entry.key.contains(cityFilter) || cityFilter.contains(entry.key)) {
+        try {
+          ctrl.animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(target: entry.value, zoom: 13),
+            ),
+          );
+        } catch (_) {}
+        return;
+      }
+    }
+  }
 }
 
   void _recenterMap()    => _moveCameraToFirst();
   void _toggleListView() => Navigator.pop(context);
+
+  void _applySortToResults() {
+    if (_sortMode == 'default') return;
+    setState(() {
+      switch (_sortMode) {
+        case 'price_asc':
+          _results.sort((a, b) => _priceFor(a.id).compareTo(_priceFor(b.id)));
+          break;
+        case 'price_desc':
+          _results.sort((a, b) => _priceFor(b.id).compareTo(_priceFor(a.id)));
+          break;
+        case 'rating':
+          _results.sort((a, b) {
+            final rA = ((a.data() as Map)['rating'] ?? 0) as num;
+            final rB = ((b.data() as Map)['rating'] ?? 0) as num;
+            return rB.compareTo(rA);
+          });
+          break;
+      }
+    });
+  }
+
+  void _showSortSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.background(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('Sort by',
+                  style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.text(context))),
+              const SizedBox(height: 14),
+              ...[
+                ('default',   'Default',              Icons.sort_rounded),
+                ('price_asc', 'Price: Low to High',   Icons.arrow_upward_rounded),
+                ('price_desc','Price: High to Low',   Icons.arrow_downward_rounded),
+                ('rating',    'Highest Rated',         Icons.star_rounded),
+              ].map((item) {
+                final mode  = item.$1;
+                final label = item.$2;
+                final icon  = item.$3;
+                final sel   = _sortMode == mode;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: sel ? AppColors.primaryOrange : AppColors.orangeLight,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, size: 18,
+                        color: sel ? Colors.white : AppColors.primaryOrange),
+                  ),
+                  title: Text(label,
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                          color: sel ? AppColors.primaryOrange : AppColors.text(context))),
+                  trailing: sel
+                      ? const Icon(Icons.check_rounded,
+                          color: AppColors.primaryOrange, size: 18)
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() {
+                      _sortMode = mode;
+                      _displayCount = _pageSize;
+                    });
+                    _applySortToResults();
+                  },
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _clearFilters() {
     setState(() {
@@ -537,6 +671,15 @@ void _moveCameraToFirst() {
     for (final doc in _results) {
       final geo = (doc.data() as Map)['coordinates'] as GeoPoint?;
       if (geo != null) return LatLng(geo.latitude, geo.longitude);
+    }
+    // Use known city coordinates when a city filter is active
+    final cityFilter = _filters['city']?.toString().toLowerCase().trim();
+    if (cityFilter != null && cityFilter.isNotEmpty) {
+      for (final entry in _cityCenters.entries) {
+        if (entry.key.contains(cityFilter) || cityFilter.contains(entry.key)) {
+          return entry.value;
+        }
+      }
     }
     return _kCenter;
   }
@@ -893,24 +1036,35 @@ onApartmentSelected: (apartmentName) async {
           ),
           const Spacer(),
           GestureDetector(
-            onTap: () {},
+            onTap: _showSortSheet,
             child: Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
-                color:        AppColors.card(context),
+                color: _sortMode != 'default'
+                    ? AppColors.primaryOrange
+                    : AppColors.card(context),
                 borderRadius: BorderRadius.circular(20),
-                border:       Border.all(color: AppColors.border),
+                border: Border.all(
+                  color: _sortMode != 'default'
+                      ? AppColors.primaryOrange
+                      : AppColors.border,
+                ),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.swap_vert_rounded,
-                    size: 16, color: AppColors.textMid),
+                    size: 16,
+                    color: _sortMode != 'default'
+                        ? Colors.white
+                        : AppColors.textMid),
                 const SizedBox(width: 4),
                 Text('Sort',
                     style: TextStyle(
                         fontSize:   13,
                         fontWeight: FontWeight.w600,
-                        color:      AppColors.textMid)),
+                        color: _sortMode != 'default'
+                            ? Colors.white
+                            : AppColors.textMid)),
               ]),
             ),
           ),

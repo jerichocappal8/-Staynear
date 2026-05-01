@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -156,15 +157,22 @@ late Animation<double> _fadeAnim;
     hint: 'Full name',
     controller: nameCtrl,
     icon: Icons.person_outline,
+    inputFormatters: [
+      FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z '\-]")),
+    ],
   ),
 
   const SizedBox(height: 14),
 
   _AuthField(
-    hint: 'Phone number',
+    hint: 'Phone number (09XXXXXXXXX)',
     controller: phoneCtrl,
     icon: Icons.phone_outlined,
-    keyboardType: TextInputType.phone,
+    keyboardType: TextInputType.number,
+    inputFormatters: [
+      FilteringTextInputFormatter.digitsOnly,
+      LengthLimitingTextInputFormatter(11),
+    ],
   ),
 ],
 
@@ -334,46 +342,56 @@ Future<void> _handleAuth() async {
         await _check2FA();
       }
     } else {
+      // Validate name
+      if (nameCtrl.text.trim().isEmpty) {
+        _showError("Please enter your full name.");
+        setState(() => loading = false);
+        return;
+      }
+      final namePattern = RegExp(r"^[a-zA-Z '\-]+$");
+      if (!namePattern.hasMatch(nameCtrl.text.trim())) {
+        _showError("Name must contain letters, spaces, hyphens, or apostrophes only.");
+        setState(() => loading = false);
+        return;
+      }
+      // Validate phone
+      final phone = phoneCtrl.text.trim();
+      if (phone.isEmpty) {
+        _showError("Please enter your phone number.");
+        setState(() => loading = false);
+        return;
+      }
+      if (!RegExp(r'^(09)\d{9}$').hasMatch(phone)) {
+        _showError("Enter a valid PH phone number (09XXXXXXXXX).");
+        setState(() => loading = false);
+        return;
+      }
+
       final registerUser = await auth.register(
         emailCtrl.text.trim(),
         passCtrl.text.trim(),
-        phoneCtrl.text.trim(),
+        phone,
         nameCtrl.text.trim(),
       );
 
-      if (registerUser != null) {
-        await _goHome();
+      if (registerUser != null && mounted) {
+        // Sign out so user must log in manually (issue 14)
+        await FirebaseAuth.instance.signOut();
+        if (!mounted) return;
+        _showSignupSuccess();
       }
     }
   } catch (e) {
     if (!mounted) return;
 
-    String message = "Something went wrong";
+    final message = _authErrorMessage(
+      e,
+      fallback: isLogin
+          ? "Login failed. Please try again."
+          : "Sign up failed. Please try again.",
+    );
 
-    if (e is FirebaseAuthException) {
-      switch (e.code) {
-        case 'user-not-found':
-          message = "No account found with this email.";
-          break;
-        case 'wrong-password':
-          message = "Incorrect password.";
-          break;
-        case 'invalid-email':
-          message = "Invalid email address.";
-          break;
-        case 'user-disabled':
-          message = "This account has been disabled.";
-          break;
-        case 'too-many-requests':
-          message = "Too many attempts. Try again later.";
-          break;
-        case 'network-request-failed':
-          message = "No internet connection.";
-          break;
-        default:
-          message = "Login failed. Please try again.";
-      }
-    }
+    print("SIGNUP/LOGIN ERROR: $e");
 
     _showError(message);
   } finally {
@@ -499,10 +517,62 @@ Future<void> _handleAuth() async {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
+        SnackBar(
+          content: Text(
+            _authErrorMessage(
+              e,
+              fallback: "Could not send reset email. Please try again.",
+            ),
+          ),
+        ),
       );
     }
   }
+
+  String _authErrorMessage(
+    Object error, {
+    String fallback = "Something went wrong. Please try again.",
+  }) {
+    if (error is FirebaseAuthException) {
+      switch (error.code) {
+        case 'email-already-in-use':
+          return "An account already exists with this email.";
+        case 'invalid-credential':
+        case 'user-not-found':
+        case 'wrong-password':
+          return "Incorrect email or password.";
+        case 'invalid-email':
+          return "Enter a valid email address.";
+        case 'user-disabled':
+          return "This account has been disabled.";
+        case 'too-many-requests':
+          return "Too many attempts. Please try again later.";
+        case 'network-request-failed':
+          return "No internet connection. Please check your network.";
+        case 'weak-password':
+          return "Use a stronger password before signing up.";
+        case 'operation-not-allowed':
+          return "This sign-in method is not enabled.";
+        default:
+          return fallback;
+      }
+    }
+
+    if (error is FirebaseException) {
+      switch (error.code) {
+        case 'permission-denied':
+          return "Your account is signed in, but this action is not allowed.";
+        case 'unavailable':
+        case 'deadline-exceeded':
+          return "Firebase is temporarily unavailable. Please try again.";
+        default:
+          return fallback;
+      }
+    }
+
+    return fallback;
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -513,6 +583,40 @@ Future<void> _handleAuth() async {
           borderRadius: BorderRadius.circular(12),
         ),
         margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  void _showSignupSuccess() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Account Created!',
+            style: TextStyle(fontWeight: FontWeight.w800)),
+        content: const Text(
+          'Your account has been created successfully. Please log in to continue.',
+          style: TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // close dialog
+              setState(() {
+                isLogin = true;
+                emailCtrl.clear();
+                passCtrl.clear();
+                nameCtrl.clear();
+                phoneCtrl.clear();
+              });
+            },
+            child: const Text('Go to Login',
+                style: TextStyle(
+                    color: AppColors.primaryOrange,
+                    fontWeight: FontWeight.w700)),
+          ),
+        ],
       ),
     );
   }
@@ -647,12 +751,14 @@ class _AuthField extends StatelessWidget {
   final TextEditingController controller;
   final IconData icon;
   final TextInputType keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
 
   const _AuthField({
     required this.hint,
     required this.controller,
     required this.icon,
     this.keyboardType = TextInputType.text,
+    this.inputFormatters,
   });
 
   @override
@@ -660,8 +766,9 @@ class _AuthField extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return TextField(
-      controller:   controller,
-      keyboardType: keyboardType,
+      controller:      controller,
+      keyboardType:    keyboardType,
+      inputFormatters: inputFormatters,
       style: TextStyle(
         color:    AppColors.text(context),
         fontSize: 15,
@@ -838,6 +945,7 @@ class _PrimaryButton extends StatelessWidget {
         ),
       ),
     );
+ 
   }
 }
 

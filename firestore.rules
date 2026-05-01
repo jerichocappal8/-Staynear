@@ -1,0 +1,448 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid))
+             .data.get('role', '') == 'admin';
+    }
+
+    function privilegedUserFields() {
+      return [
+        'role',
+        'isAdmin',
+        'isHost',
+        'hostStatus',
+        'verificationStatus'
+      ];
+    }
+
+    function ownerUserFields() {
+      return [
+        'address',
+        'barangay',
+        'city',
+        'createdAt',
+        'email',
+        'firstName',
+        'hostRequest',
+        'lastLogin',
+        'lastName',
+        'middleName',
+        'name',
+        'phone',
+        'photo',
+        'photoUrl',
+        'provider',
+        'province',
+        'street',
+        'twoFABackupCodes',
+        'twoFAEnabled',
+        'twoFASecret',
+        'updatedAt',
+        'zipCode'
+      ];
+    }
+
+    function ownerUserCreateFields() {
+      return [
+        'address',
+        'barangay',
+        'city',
+        'createdAt',
+        'email',
+        'firstName',
+        'hostRequest',
+        'isAdmin',
+        'isHost',
+        'lastLogin',
+        'lastName',
+        'middleName',
+        'name',
+        'phone',
+        'photo',
+        'photoUrl',
+        'provider',
+        'province',
+        'role',
+        'street',
+        'twoFABackupCodes',
+        'twoFAEnabled',
+        'twoFASecret',
+        'updatedAt',
+        'zipCode'
+      ];
+    }
+
+    function ownerUserCreateAllowed(userId) {
+      return signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(ownerUserCreateFields())
+        && (
+          !request.resource.data.keys().hasAny(['role'])
+          || request.resource.data.role == 'user'
+        )
+        && (
+          !request.resource.data.keys().hasAny(['isAdmin'])
+          || request.resource.data.isAdmin == false
+        )
+        && (
+          !request.resource.data.keys().hasAny(['isHost'])
+          || request.resource.data.isHost == false
+        )
+        && (
+          !request.resource.data.keys().hasAny(['hostRequest'])
+          || request.resource.data.hostRequest == 'pending'
+        );
+    }
+
+    function ownerUserUpdateAllowed(userId) {
+      return signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data)
+             .affectedKeys().hasOnly(ownerUserFields())
+        && (
+          !request.resource.data.diff(resource.data)
+             .affectedKeys().hasAny(['hostRequest'])
+          || request.resource.data.hostRequest == 'pending'
+        );
+    }
+
+    function hostRequestAdminFields() {
+      return [
+        'adminNotes',
+        'approvedAt',
+        'rejectedAt',
+        'rejectionReason',
+        'reviewedAt',
+        'reviewedBy',
+        'status'
+      ];
+    }
+
+    function validHostRequestCreate(requestId) {
+      return signedIn()
+        && request.auth.uid == requestId
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && !request.resource.data.keys().hasAny([
+          'adminNotes',
+          'approvedAt',
+          'rejectedAt',
+          'rejectionReason',
+          'reviewedAt',
+          'reviewedBy'
+        ]);
+    }
+
+    function validHostRequestOwnerUpdate(requestId) {
+      return signedIn()
+        && request.auth.uid == requestId
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid
+        && !request.resource.data.diff(resource.data)
+             .affectedKeys().hasAny(hostRequestAdminFields());
+    }
+
+    function propertyOwner(propertyId) {
+      return get(/databases/$(database)/documents/properties/$(propertyId))
+        .data.ownerId;
+    }
+
+    function isPropertyOwner(propertyId) {
+      return signedIn() && request.auth.uid == propertyOwner(propertyId);
+    }
+
+    function validPaymentCreate() {
+      let booking = get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId));
+      return signedIn()
+        && request.auth.uid == request.resource.data.userId
+        && request.resource.data.keys().hasAll([
+          'userId',
+          'hostId',
+          'bookingId',
+          'propertyId',
+          'amount',
+          'method',
+          'status',
+          'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'userId',
+          'hostId',
+          'bookingId',
+          'propertyId',
+          'amount',
+          'method',
+          'status',
+          'createdAt'
+        ])
+        && request.resource.data.status == 'success'
+        && request.resource.data.amount > 0
+        && booking.data.userId == request.auth.uid
+        && booking.data.hostId == request.resource.data.hostId
+        && booking.data.apartmentId == request.resource.data.propertyId;
+    }
+
+    function validRoomOccupancyCreate() {
+      let booking = get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId));
+      return signedIn()
+        && request.auth.uid == request.resource.data.guestId
+        && request.resource.data.keys().hasAll([
+          'bookingId',
+          'apartmentId',
+          'hostId',
+          'guestId',
+          'status'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'apartmentId',
+          'apartmentName',
+          'bookingId',
+          'checkIn',
+          'checkOut',
+          'createdAt',
+          'guestEmail',
+          'guestId',
+          'guestName',
+          'hostId',
+          'pricingMode',
+          'roomId',
+          'roomType',
+          'status'
+        ])
+        && request.resource.data.status == 'occupied'
+        && booking.data.userId == request.auth.uid
+        && booking.data.hostId == request.resource.data.hostId
+        && booking.data.apartmentId == request.resource.data.apartmentId;
+    }
+
+    function bookingUserUpdateFields() {
+      return [
+        'amountPaid',
+        'bookingStatus',
+        'cancelledAt',
+        'hasReview',
+        'paidAt',
+        'paymentStatus',
+        'remainingBalance'
+      ];
+    }
+
+    function conversationUpdateFields() {
+      return [
+        'bookingId',
+        'lastMessage',
+        'lastMessageType',
+        'lastTimestamp',
+        'paymentId'
+      ];
+    }
+
+    // USERS
+    match /users/{userId} {
+      allow read: if signedIn();
+
+      allow create: if ownerUserCreateAllowed(userId) || isAdmin();
+
+      allow update: if ownerUserUpdateAllowed(userId) || isAdmin();
+
+      allow delete: if request.auth.uid == userId || isAdmin();
+    }
+
+    // PROPERTIES
+    match /properties/{propertyId} {
+      allow read: if true;
+
+      allow create: if signedIn()
+                    && request.auth.uid == request.resource.data.ownerId;
+
+      allow update: if signedIn()
+                    && (
+                      request.auth.uid == resource.data.ownerId
+                      || request.resource.data.diff(resource.data)
+                           .affectedKeys().hasOnly(['rating', 'reviewCount'])
+                    );
+
+      allow delete: if signedIn()
+                    && request.auth.uid == resource.data.ownerId;
+    }
+
+    // PROPERTY ANALYTICS
+    match /properties/{propertyId}/analytics/{docId} {
+      allow read, write: if isPropertyOwner(propertyId) || isAdmin();
+    }
+
+    // ROOMS
+    match /properties/{propertyId}/rooms/{roomId} {
+      allow read: if true;
+
+      allow create, delete: if isPropertyOwner(propertyId);
+
+      allow update: if signedIn()
+        && (
+          isPropertyOwner(propertyId)
+          || request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['availableUnits'])
+        );
+    }
+
+    // REVIEWS
+    match /reviews/{reviewId} {
+      allow read: if true;
+
+      allow create: if signedIn()
+                    && request.auth.uid == request.resource.data.userId;
+
+      allow update, delete: if false;
+    }
+
+    // BOOKINGS
+    match /bookings/{bookingId} {
+      allow read: if signedIn()
+                  && (
+                    request.auth.uid == resource.data.userId
+                    || request.auth.uid == resource.data.hostId
+                    || isAdmin()
+                  );
+
+      allow create: if signedIn()
+                    && request.auth.uid == request.resource.data.userId;
+
+      // TODO: Move confirmed payment, booking status, room availability, and
+      // room_occupancy mutations to Cloud Functions. These client-side updates
+      // are kept for the current app flow and are not production payment proof.
+      allow update: if isAdmin()
+                    || (
+                      signedIn()
+                      && request.auth.uid == resource.data.userId
+                      && request.resource.data.diff(resource.data)
+                           .affectedKeys().hasOnly(bookingUserUpdateFields())
+                    );
+
+      allow delete: if false;
+    }
+
+    // PAYMENTS
+    match /payments/{paymentId} {
+      allow read: if signedIn()
+                  && (
+                    request.auth.uid == resource.data.userId
+                    || request.auth.uid == resource.data.hostId
+                    || isAdmin()
+                  );
+
+      // TESTING MODE ONLY: the current app writes a success payment from the
+      // client after Stripe PaymentSheet returns. Rules can check ownership and
+      // booking consistency, but cannot verify Stripe settlement. For production,
+      // set this to false/admin-only and create payments from Cloud Functions.
+      allow create: if validPaymentCreate();
+
+      allow update: if isAdmin();
+
+      allow delete: if false;
+    }
+
+    // HOST REQUESTS
+    match /host_requests/{requestId} {
+      allow read: if signedIn()
+                  && (request.auth.uid == requestId || isAdmin());
+
+      allow create: if validHostRequestCreate(requestId);
+
+      allow update: if validHostRequestOwnerUpdate(requestId) || isAdmin();
+
+      allow delete: if false;
+    }
+
+    // HOSTS
+    match /hosts/{hostId} {
+      allow read: if signedIn();
+
+      allow write: if isAdmin();
+    }
+
+    // ROOM OCCUPANCY
+    match /room_occupancy/{occupancyId} {
+      allow read: if signedIn()
+                  && (
+                    request.auth.uid == resource.data.hostId
+                    || request.auth.uid == resource.data.guestId
+                    || isAdmin()
+                  );
+
+      // TODO: Move creation to Cloud Functions together with confirmed payment.
+      allow create: if validRoomOccupancyCreate();
+
+      allow update: if signedIn()
+                    && (
+                      request.auth.uid == resource.data.hostId
+                      || request.auth.uid == resource.data.guestId
+                      || isAdmin()
+                    )
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys().hasOnly(['status']);
+
+      allow delete: if false;
+    }
+
+    // CONVERSATIONS
+    match /conversations/{conversationId} {
+      allow read: if signedIn()
+                  && (
+                    request.auth.uid == resource.data.userId
+                    || request.auth.uid == resource.data.hostId
+                  );
+
+      allow create: if signedIn()
+                    && (
+                      request.auth.uid == request.resource.data.userId
+                      || request.auth.uid == request.resource.data.hostId
+                    );
+
+      allow update: if signedIn()
+                    && (
+                      request.auth.uid == resource.data.userId
+                      || request.auth.uid == resource.data.hostId
+                    )
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys().hasOnly(conversationUpdateFields());
+
+      match /messages/{messageId} {
+        allow read: if signedIn()
+          && (
+            get(/databases/$(database)/documents/conversations/$(conversationId))
+              .data.userId == request.auth.uid
+            || get(/databases/$(database)/documents/conversations/$(conversationId))
+              .data.hostId == request.auth.uid
+          );
+
+        allow create: if signedIn()
+          && (
+            get(/databases/$(database)/documents/conversations/$(conversationId))
+              .data.userId == request.auth.uid
+            || get(/databases/$(database)/documents/conversations/$(conversationId))
+              .data.hostId == request.auth.uid
+          )
+          && request.auth.uid == request.resource.data.senderId;
+
+        allow update: if signedIn()
+          && (
+            get(/databases/$(database)/documents/conversations/$(conversationId))
+              .data.userId == request.auth.uid
+            || get(/databases/$(database)/documents/conversations/$(conversationId))
+              .data.hostId == request.auth.uid
+          )
+          && request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['isRead']);
+
+        allow delete: if false;
+      }
+    }
+  }
+}

@@ -28,6 +28,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
@@ -265,6 +266,9 @@ Future<void> _updateFirestore(double amountPaid) async {
 
   final paymentDoc = paymentsRef.doc();
 
+  // DEMO/CAPSTONE MODE: the client records a successful advance payment after
+  // Stripe PaymentSheet returns. Production should confirm payment and update
+  // booking state from a trusted backend or Stripe webhook.
   // ── transaction ─────────────────────────
   await FirebaseFirestore.instance.runTransaction((tx) async {
 
@@ -291,29 +295,36 @@ Future<void> _updateFirestore(double amountPaid) async {
       'paymentStatus': newStatus,
     });
 
-    // create payment
+    // Booking docs use apartmentId for the properties/{id} document. Payment
+    // docs store the same value as propertyId for query/rules compatibility.
     tx.set(paymentDoc, {
-      'amount': amountPaid,
-      'bookingId': widget.bookingId,
-      'apartmentName': current['apartmentName'],
-      'method': 'card',
-      'status': 'success',
-      'createdAt': FieldValue.serverTimestamp(),
+      'bookingId':    widget.bookingId,
+      'userId':       (current['userId']     as String?) ?? '',
+      'hostId':       (current['hostId']     as String?) ?? '',
+      'propertyId':   (current['apartmentId'] as String?) ?? '',
+      'amount':       amountPaid,
+      'method':       'card',
+      'status':       'success',
+      'createdAt':    FieldValue.serverTimestamp(),
     });
 
   });
 
   // ── attach payment to chat conversation ──
-  final convoSnap = await FirebaseFirestore.instance
-      .collection("conversations")
-      .where("bookingId", isEqualTo: widget.bookingId)
-      .limit(1)
-      .get();
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (currentUser != null) {
+    final convoSnap = await FirebaseFirestore.instance
+        .collection("conversations")
+        .where("bookingId", isEqualTo: widget.bookingId)
+        .where("userId", isEqualTo: currentUser.uid)
+        .limit(1)
+        .get();
 
-  if (convoSnap.docs.isNotEmpty) {
-    await convoSnap.docs.first.reference.update({
-      "paymentId": paymentDoc.id,
-    });
+    if (convoSnap.docs.isNotEmpty) {
+      await convoSnap.docs.first.reference.update({
+        "paymentId": paymentDoc.id,
+      });
+    }
   }
 }
 

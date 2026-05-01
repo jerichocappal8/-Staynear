@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'advance_payment_page.dart';
 import '../reviews/review_page.dart';
@@ -25,45 +26,6 @@ class BookingDetailPage extends StatefulWidget {
 }
 
 class _BookingDetailPageState extends State<BookingDetailPage> {
-  Future<void> cancelBooking() async {
-    final bookingRef = FirebaseFirestore.instance
-        .collection('bookings')
-        .doc(widget.bookingId);
-
-    final snap = await bookingRef.get();
-    if (!snap.exists) return;
-
-    final data = snap.data()!;
-
-    final apartmentId = data['apartmentId'];
-    final roomId = data['roomId'];
-
-    // update booking
-    await bookingRef.update({
-      'bookingStatus': 'cancelled',
-      'cancelledAt': Timestamp.now(),
-    });
-
-    // update occupancy
-    final occSnap = await FirebaseFirestore.instance
-        .collection('room_occupancy')
-        .where('bookingId', isEqualTo: widget.bookingId)
-        .get();
-
-    for (final doc in occSnap.docs) {
-      await doc.reference.update({'status': 'cancelled'});
-    }
-
-    // restore room availability
-    await FirebaseFirestore.instance
-        .collection('properties')
-        .doc(apartmentId)
-        .collection('rooms')
-        .doc(roomId)
-        .update({
-      'availableUnits': FieldValue.increment(1)
-    });
-  }
   bool _cancelling = false;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -131,6 +93,25 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
   }
 
   // ── Cancel booking ─────────────────────────────────────────────────────────
+  //
+  //  Design: one atomic Firestore transaction.
+  //
+  //  Why pre-fetch occupancy refs before the transaction:
+  //    Firestore transactions cannot run collection queries (.where(...).get()).
+  //    We fetch the document refs first, outside the transaction, then lock
+  //    those exact documents inside it. This is the standard Firestore pattern.
+  //    It is safe here because occupancy docs are created once on payment and
+  //    never added again for the same booking.
+  //
+  //  Transaction rule — ALL reads must come before ALL writes in the callback.
+  //  Firestore will retry the whole callback if any document changed between
+  //  the read and the commit, guaranteeing consistency.
+  //
+  //  UI contract:
+  //    • The screen uses StreamBuilder, so Firestore drives the displayed status.
+  //    • We never manually set "Cancelled" in the UI — the stream does it.
+  //    • If the transaction throws, _cancelling is reset so the button reappears.
+  //    • We do NOT setState after Navigator.pop to avoid "setState after dispose".
 
   Future<void> _cancelBooking() async {
     final confirmed = await showDialog<bool>(
@@ -138,87 +119,146 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
       builder: (_) => _CancelDialog(),
     );
     if (confirmed != true) return;
-    final createdAt = widget.data['createdAt'] as Timestamp;
-  final bookingTime = createdAt.toDate();
 
-  if (DateTime.now().difference(bookingTime).inHours > 24) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text("Cancellation period expired."),
-        backgroundColor: AppColors.danger,
-      ),
-    );
-    return;
-  }
-
-  setState(() => _cancelling = true);
     setState(() => _cancelling = true);
+
     try {
-final bookingRef = FirebaseFirestore.instance
-    .collection('bookings')
-    .doc(widget.bookingId);
+      final bookingRef = FirebaseFirestore.instance
+          .collection('bookings')
+          .doc(widget.bookingId);
 
-final snap = await bookingRef.get();
-final data = snap.data()!;
+      // ── Phase 1: pre-fetch occupancy refs (query, outside transaction) ────
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) throw Exception('not_signed_in');
 
-final apartmentId = data['apartmentId'];
-final roomId = data['roomId'];
+      final occQuerySnap = await FirebaseFirestore.instance
+          .collection('room_occupancy')
+          .where('bookingId', isEqualTo: widget.bookingId)
+          .where('guestId', isEqualTo: uid)
+          .get();
+      final occRefs = occQuerySnap.docs.map((d) => d.reference).toList();
 
-// 1️⃣ cancel booking
-await bookingRef.update({
-  'bookingStatus': 'cancelled',
-  'cancelledAt': Timestamp.now(),
-});
+      // ── Phase 2: single atomic transaction ───────────────────────────────
+      await FirebaseFirestore.instance.runTransaction((txn) async {
 
-// 2️⃣ cancel occupancy
-final occSnap = await FirebaseFirestore.instance
-    .collection('room_occupancy')
-    .where('bookingId', isEqualTo: widget.bookingId)
-    .get();
+        // ── ALL READS FIRST ────────────────────────────────────────────────
 
-for (final doc in occSnap.docs) {
-  await doc.reference.update({
-    'status': 'cancelled'
-  });
-}
+        // 1. Read booking (source of truth for status, ids, and timestamps)
+        final bookingSnap = await txn.get(bookingRef);
+        if (!bookingSnap.exists) throw Exception('booking_not_found');
 
-// 3️⃣ restore available room
-await FirebaseFirestore.instance
-    .collection('properties')
-    .doc(apartmentId)
-    .collection('rooms')
-    .doc(roomId)
-    .update({
-  'availableUnits': FieldValue.increment(1)
-});
+        final bookingData   = bookingSnap.data()!;
+        final currentStatus = (bookingData['bookingStatus'] ?? '').toString();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Booking cancelled successfully'),
-            backgroundColor: AppColors.primaryOrange,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
-        Navigator.pop(context);
-      }
+        // Double-cancel guard — atomic: no other cancel can slip through
+        if (currentStatus == 'cancelled') throw Exception('already_cancelled');
+
+        // 24-hour window — validated against live Firestore data (not stale widget.data)
+        final rawCreatedAt = bookingData['createdAt'];
+        if (rawCreatedAt is Timestamp) {
+          if (DateTime.now().difference(rawCreatedAt.toDate()).inHours > 24) {
+            throw Exception('window_expired');
+          }
+        }
+
+        final apartmentId = bookingData['apartmentId'] as String?;
+        final roomId      = bookingData['roomId']      as String?;
+
+        // 2. Read room document so we can compute newUnits from the live value
+        DocumentReference? roomRef;
+        DocumentSnapshot?  roomSnap;
+        if (apartmentId != null && apartmentId.isNotEmpty &&
+            roomId      != null && roomId.isNotEmpty) {
+          roomRef  = FirebaseFirestore.instance
+              .collection('properties')
+              .doc(apartmentId)
+              .collection('rooms')
+              .doc(roomId);
+          roomSnap = await txn.get(roomRef);
+        }
+
+        // 3. Lock every occupancy document so no concurrent write can change them
+        for (final ref in occRefs) {
+          await txn.get(ref);
+        }
+
+        // ── ALL WRITES (no reads after this line) ─────────────────────────
+
+        // 4. Mark booking cancelled
+        txn.update(bookingRef, {
+          'bookingStatus': 'cancelled',
+          'cancelledAt':   Timestamp.now(),
+        });
+
+        // 5. Restore room availability — computed from the live read value.
+        //    Using the read value (not FieldValue.increment) means the new
+        //    count is predictable and can be capped at totalUnits if that field
+        //    exists in the room document.
+        if (roomRef != null && roomSnap != null && roomSnap.exists) {
+          final roomData     = roomSnap.data() as Map<String, dynamic>;
+          final currentUnits = (roomData['availableUnits'] as num?)?.toInt() ?? 0;
+          final totalUnits   = (roomData['totalUnits']     as num?)?.toInt();
+          // Increment by 1; if the host has stored a totalUnits ceiling, clamp to it
+          final newUnits     = (totalUnits != null)
+              ? (currentUnits + 1).clamp(0, totalUnits)
+              : currentUnits + 1;
+          txn.update(roomRef, {'availableUnits': newUnits});
+        }
+
+        // 6. Mark every occupancy record for this booking as cancelled
+        for (final ref in occRefs) {
+          txn.update(ref, {'status': 'cancelled'});
+        }
+
+        // Transaction commits here. If anything conflicted, Firestore retries
+        // the entire callback — the booking stays unchanged until all writes
+        // land together.
+      });
+
+      // ── Transaction committed ─────────────────────────────────────────────
+      // The StreamBuilder picks up 'cancelled' from Firestore automatically.
+      // We pop the screen; no setState needed — the widget will be disposed.
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Booking cancelled successfully.'),
+          backgroundColor: AppColors.primaryOrange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+
+      Navigator.pop(context);
+
     } catch (e) {
-      if (mounted) {
-        setState(() => _cancelling = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to cancel: $e'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
+      // Transaction did not commit — Firestore was not changed.
+      // Restore the button so the user can see the original status and retry.
+      if (!mounted) return;
+      setState(() => _cancelling = false);
+
+      final raw = e.toString();
+      final String msg;
+      if (raw.contains('already_cancelled')) {
+        msg = 'This booking is already cancelled.';
+      } else if (raw.contains('window_expired')) {
+        msg = 'Cancellation window has expired (24 hours after booking).';
+      } else if (raw.contains('booking_not_found')) {
+        msg = 'Booking not found. Please refresh and try again.';
+      } else {
+        msg = 'Cancellation failed. Please try again.';
       }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
     }
   }
 
@@ -238,6 +278,12 @@ Widget build(BuildContext context) {
       if (!snapshot.hasData) {
         return const Scaffold(
           body: Center(child: CircularProgressIndicator()),
+        );
+      }
+
+      if (!snapshot.data!.exists) {
+        return const Scaffold(
+          body: Center(child: Text('Booking not found')),
         );
       }
 

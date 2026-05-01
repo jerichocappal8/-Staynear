@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:staynear/core/app_colors.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ─── App Colors (your existing theme) ────────────────────────────────────────
 // ─── FAQ Data Model ───────────────────────────────────────────────────────────
@@ -354,7 +355,36 @@ class _FAQScreenState extends State<FAQScreen>
                   ),
                   const SizedBox(height: 14),
                   GestureDetector(
-                    onTap: () {},
+                    onTap: () async {
+                      final uri = Uri(
+                        scheme: 'mailto',
+                        path: 'support@staynear.ph',
+                        queryParameters: {
+                          'subject': 'StayNear Support Request',
+                        },
+                      );
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri);
+                      } else {
+                        // Fallback: show email in a dialog
+                        showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Contact Support'),
+                            content: const Text(
+                              'Email us at:\nsupport@staynear.ph',
+                              style: TextStyle(height: 1.5),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                    },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 18,

@@ -6,6 +6,7 @@ class GuestInfoModel {
   final String    firstName;
   final String    lastName;
   final String    email;
+  final String    phone;
   final DateTime  checkInDate;
   final DateTime  checkOutDate;
   final int       roomsCount;
@@ -16,6 +17,7 @@ class GuestInfoModel {
     required this.firstName,
     required this.lastName,
     required this.email,
+    required this.phone,
     required this.checkInDate,
     required this.checkOutDate,
     required this.roomsCount,
@@ -27,6 +29,7 @@ class GuestInfoModel {
     String?   firstName,
     String?   lastName,
     String?   email,
+    String?   phone,
     DateTime? checkInDate,
     DateTime? checkOutDate,
     int?      roomsCount,
@@ -37,6 +40,7 @@ class GuestInfoModel {
       firstName:       firstName       ?? this.firstName,
       lastName:        lastName        ?? this.lastName,
       email:           email           ?? this.email,
+      phone:           phone           ?? this.phone,
       checkInDate:     checkInDate     ?? this.checkInDate,
       checkOutDate:    checkOutDate    ?? this.checkOutDate,
       roomsCount:      roomsCount      ?? this.roomsCount,

@@ -5,9 +5,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart'; // add intl to pubspec.yaml
+import 'package:intl/intl.dart';
 import 'package:staynear/core/app_colors.dart';
 import 'package:staynear/core/auth_helper.dart';
+import 'package:staynear/core/app_cities.dart';
 
 // ── PH Address data ───────────────────────────────────────────────────────────
 const _phRegions = [
@@ -69,6 +70,7 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
   }
   // ── Step 2 – Address ──────────────────────────────────────────────────────
   String? _region;
+  String? _hostSelectedCity;
   final provinceCtrl  = TextEditingController();
   final cityCtrl      = TextEditingController();
   final barangayCtrl  = TextEditingController();
@@ -128,7 +130,7 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
     if (firstNameCtrl.text.trim().isEmpty) errs['firstName'] = 'First name is required';
     if (phoneCtrl.text.trim().isEmpty) {
       errs['phone'] = 'Phone number is required';
-    } else if (!RegExp(r'^(09|\+639)\d{9}$').hasMatch(phoneCtrl.text.trim())) {
+    } else if (!RegExp(r'^09\d{9}$').hasMatch(phoneCtrl.text.trim())) {
       errs['phone'] = 'Enter a valid PH number (09XXXXXXXXX)';
     }
     if (_dob == null) {
@@ -223,15 +225,40 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
       });
       await FirebaseFirestore.instance
           .collection('users').doc(uid).update({'hostRequest': 'pending'});
-      setState(() => loading = false);
       if (!mounted) return;
+      setState(() => loading = false);
       Navigator.pop(context);
       _showSnack("Application submitted! We'll review within 24 hours ✓");
     } catch (e) {
+      if (!mounted) return;
       setState(() => loading = false);
-      _showSnack("Something went wrong. Please try again.", isError: true);
+      _showSnack(_hostApplicationErrorMessage(e), isError: true);
     }
   }
+
+  String _hostApplicationErrorMessage(Object error) {
+    if (error is FirebaseException) {
+      switch (error.code) {
+        case 'permission-denied':
+          return "You do not have permission to submit this application.";
+        case 'unauthenticated':
+          return "Please sign in again before submitting your application.";
+        case 'object-not-found':
+          return "One of the selected documents could not be uploaded.";
+        case 'quota-exceeded':
+        case 'retry-limit-exceeded':
+        case 'unavailable':
+          return "Upload service is temporarily unavailable. Please try again.";
+        case 'canceled':
+          return "Upload was cancelled. Please try again.";
+        default:
+          return "Could not submit your host application. Please check your details and try again.";
+      }
+    }
+
+    return "Could not submit your host application. Please check your details and try again.";
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
   Future<String> _uploadImage(File file, String path) async {
     final ref = FirebaseStorage.instance.ref(path);
@@ -242,6 +269,27 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
     final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked == null) return null;
     return File(picked.path);
+  }
+
+  /// Pick and validate an ID image — checks extension and file size (max 5 MB).
+  Future<File?> _pickIdImage() async {
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null) return null;
+
+    final ext = picked.path.toLowerCase().split('.').last;
+    if (!['jpg', 'jpeg', 'png'].contains(ext)) {
+      _showSnack('Only JPG or PNG images are accepted.', isError: true);
+      return null;
+    }
+
+    final file = File(picked.path);
+    final sizeBytes = await file.length();
+    if (sizeBytes > 5 * 1024 * 1024) {
+      _showSnack('Image must be smaller than 5 MB.', isError: true);
+      return null;
+    }
+
+    return file;
   }
   void _showSnack(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -528,7 +576,7 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
           _FormField(
             controller: phoneCtrl, label: 'Phone Number',
             icon: Icons.phone_outlined, hint: '09XXXXXXXXX',
-            inputType: TextInputType.phone,
+            inputType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly,
                               LengthLimitingTextInputFormatter(11)],
             error: _step1Errors['phone'],
@@ -564,10 +612,18 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
             onChanged: (_) => setState(() => _step2Errors.remove('province')),
           ),
           _divider(),
-          _FormField(
-            controller: cityCtrl, label: 'City / Municipality',
-            icon: Icons.apartment_outlined, error: _step2Errors['city'],
-            onChanged: (_) => setState(() => _step2Errors.remove('city')),
+          // City dropdown — uses AppCities.list for Pangasinan municipalities
+          _DropdownField<String>(
+            value: _hostSelectedCity,
+            label: 'City / Municipality',
+            icon: Icons.apartment_outlined,
+            error: _step2Errors['city'],
+            items: AppCities.list,
+            onChanged: (v) => setState(() {
+              _hostSelectedCity = v;
+              cityCtrl.text = v ?? '';
+              _step2Errors.remove('city');
+            }),
           ),
         ]),
         const SizedBox(height: 22),
@@ -627,24 +683,30 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
           ),
           const SizedBox(height: 24),
         ],
-        _sectionLabel(Icons.verified_user_outlined, 'Government ID'),
+        _sectionLabel(Icons.verified_user_outlined, 'Government ID (for admin review)'),
         const SizedBox(height: 4),
-        _hint('Upload a clear, unobstructed photo of your valid government ID.'),
+        _hint('Upload a clear JPG/PNG photo of your valid government ID (max 5 MB). '
+            'This image will be reviewed by our admin team — it is NOT automatically verified.'),
         const SizedBox(height: 12),
         _FormCard(children: [
           _DropdownField<String>(
-            value: _idType, label: 'ID Type', icon: Icons.credit_card_outlined,
+            value: _idType, label: 'ID Type (required)', icon: Icons.credit_card_outlined,
             error: _step3Errors['idType'], items: _phIdTypes,
             onChanged: (v) => setState(() { _idType = v; _step3Errors.remove('idType'); }),
           ),
         ]),
         const SizedBox(height: 12),
         _DocUploadTile(
-          label: 'Government ID', subtitle: _idType ?? 'Select ID type above first',
+          label: 'ID Image Upload (for admin review)',
+          subtitle: _idType ?? 'Select ID type above first',
           icon: Icons.credit_card_outlined, image: governmentIdImage,
           required: true, error: _step3Errors['govId'],
           onTap: () async {
-            final img = await _pickImage();
+            if (_idType == null) {
+              _showSnack('Please select an ID type first.', isError: true);
+              return;
+            }
+            final img = await _pickIdImage();
             if (img != null) setState(() { governmentIdImage = img; _step3Errors.remove('govId'); });
           },
         ),
@@ -662,11 +724,12 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
           _hint('School ID, Company ID, or any secondary identification.'),
           const SizedBox(height: 12),
           _DocUploadTile(
-            label: 'Secondary Card', subtitle: 'School / Company ID',
+            label: 'Secondary Card (for admin review)',
+            subtitle: 'School / Company ID (JPG/PNG, max 5 MB)',
             icon: Icons.school_outlined, image: secondaryCardImage,
             required: false, error: null,
             onTap: () async {
-              final img = await _pickImage();
+              final img = await _pickIdImage();
               if (img != null) setState(() => secondaryCardImage = img);
             },
           ),

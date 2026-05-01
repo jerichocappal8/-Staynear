@@ -71,6 +71,7 @@ class _AdminDashboardState extends State<AdminDashboard>
         .doc(uid)
         .update({
           'hostRequest': 'approved',
+          'role':         'host',
           'isHost':      true, // 👈 unlocks host dashboard
         });
   }
@@ -90,6 +91,7 @@ class _AdminDashboardState extends State<AdminDashboard>
         .doc(uid)
         .update({
           'hostRequest': 'rejected',
+          'role':         'user',
           'isHost':      false,
         });
   }

@@ -142,7 +142,11 @@ Future<void> _handleHosting() async {
       );
     }
 
-    final name = userData?['name'] ?? "User";
+    final firstName = (userData?['firstName'] ?? '').toString().trim();
+    final lastName  = (userData?['lastName']  ?? '').toString().trim();
+    final name = (firstName.isNotEmpty || lastName.isNotEmpty)
+        ? '$firstName $lastName'.trim()
+        : (userData?['name'] ?? 'User').toString();
     final email = userData?['email'] ?? "";
     final photo = userData?['photo'];
     final isHost = userData?['isHost'] ?? false;

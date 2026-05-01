@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:staynear/core/app_colors.dart';
 
 class TenantDetailsScreen extends StatelessWidget {
@@ -504,9 +505,15 @@ class _PaymentHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return _ErrorCard(message: "Sign in required to view payments");
+    }
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
     .collection('payments')
+    .where('hostId', isEqualTo: user.uid)
     .where('bookingId', isEqualTo: bookingId)
     .orderBy('createdAt', descending: false)
     .snapshots(),

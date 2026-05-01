@@ -7,32 +7,39 @@ class AuthService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   // EMAIL REGISTER
-  Future<User?> register(String email, String password, String phone, String name) async {
-    final existingPhone = await _db
-        .collection("users")
-        .where("phone", isEqualTo: phone)
-        .limit(1)
-        .get();
+Future<User?> register(String email, String password, String phone, String name) async {
 
-    if (existingPhone.docs.isNotEmpty) {
-      throw "Phone number already used";
-    }
+  final userCred = await _auth.createUserWithEmailAndPassword(
 
-    final userCred = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    email: email,
 
-    await _db.collection("users").doc(userCred.user!.uid).set({
-      "email": email,
-      "phone": phone,
-      "name": name,
-      "provider": "email",
-      "createdAt": FieldValue.serverTimestamp(),
-    });
+    password: password,
 
-    return userCred.user;
-  }
+  );
+
+  await _db.collection("users").doc(userCred.user!.uid).set({
+
+    "email": email,
+
+    "phone": phone,
+
+    "name": name,
+
+    "provider": "email",
+
+    "role": "user",
+
+    "isAdmin": false,
+
+    "isHost": false,
+
+    "createdAt": FieldValue.serverTimestamp(),
+
+  });
+
+  return userCred.user;
+
+}
 
   // EMAIL LOGIN
   Future<User?> login(String email, String password) async {
@@ -74,11 +81,7 @@ class AuthService {
 // RESET PASSWORD
 Future<void> resetPassword(String email) async {
 
-  print("Sending reset email to: $email");
-
   await _auth.sendPasswordResetEmail(email: email);
-
-  print("Reset email sent.");
 }
 
   // LOGOUT

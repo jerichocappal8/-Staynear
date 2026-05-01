@@ -89,7 +89,7 @@ class _AddApartmentScreenState extends State<AddApartmentScreen>
 
   // ── Property-level controllers ────────────────────────────────────────────
   final titleCtrl    = TextEditingController();
-  final locationCtrl = TextEditingController(text: "Urdaneta City");
+  final locationCtrl = TextEditingController();
   final descCtrl     = TextEditingController();
 
   // ── Property Category ─────────────────────────────────────────────────────
@@ -101,7 +101,7 @@ static const _categories = [
   'Condo',
   'Whole House',
 ];
-String? _selectedCity = 'Urdaneta City';
+String? _selectedCity;
   String? _selectedCategory;
 
   // ── Rental Terms (deposit removed — now per-room) ─────────────────────────
@@ -166,7 +166,6 @@ String? _selectedCity = 'Urdaneta City';
 
   // ── State ─────────────────────────────────────────────────────────────────
   bool   _loading = false;
-  String get _uid => FirebaseAuth.instance.currentUser!.uid;
   final  _picker  = ImagePicker();
 
   // ════════════════════════════════════════════════════════════════════════
@@ -262,6 +261,12 @@ String? _selectedCity = 'Urdaneta City';
 
     final validRooms = _roomOffers.where((r) => r.isValid).toList();
 
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      _showSnack('Please log in again to publish your listing.', isError: true);
+      return;
+    }
+
     // Validation
     if (titleCtrl.text.isEmpty    ||
         locationCtrl.text.isEmpty ||
@@ -287,7 +292,7 @@ String? _selectedCity = 'Urdaneta City';
         final ref = FirebaseStorage.instance
             .ref()
             .child('apartments')
-            .child('${_uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
+            .child('${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
         final task = await ref.putFile(img);
         imageUrls.add(await task.ref.getDownloadURL());
       }
@@ -339,7 +344,7 @@ final String minPricingMode = cheapestRoom.pricingMode;
         "rating":      0,
         "reviewCount": 0,
 
-        "ownerId":   _uid,
+        "ownerId":   uid,
         "createdAt": Timestamp.now(),
       });
 
@@ -363,7 +368,7 @@ batch.set(roomRef, {
       if (!mounted) return;
       Navigator.pop(context);
     } catch (e) {
-      _showSnack(e.toString(), isError: true);
+      _showSnack('Failed to publish listing. Please try again.', isError: true);
     } finally {
       setState(() => _loading = false);
     }

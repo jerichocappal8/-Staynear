@@ -65,7 +65,7 @@ int get _stayDuration {
   if (widget.room.pricingMode == 'daily') {
     return days;
   } else {
-    return (days / 30).round();
+    return (days / 30).floor();
   }
 }
 
@@ -94,7 +94,7 @@ final days = guestInfo!.checkOutDate
     .difference(guestInfo!.checkInDate)
     .inDays;
 
-final months = (days / 30).round();
+final months = (days / 30).floor();
 
     final priceMonthly =
         double.tryParse(widget.room.priceMonthly.trim()) ?? 0;
@@ -283,6 +283,13 @@ Future<void> _createBooking() async {
   }
 
   final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Session expired. Please log in again.")),
+    );
+    setState(() { _creatingBooking = false; });
+    return;
+  }
 if (widget.room.id == null || widget.room.id!.isEmpty) {
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(content: Text("Room ID missing. Please try again.")),
@@ -300,15 +307,16 @@ print("RoomId: ${widget.room.id}");
 final booking = BookingModel(
   apartmentId: widget.apartment.id,
   apartmentName: widget.apartment.name,
-  apartmentImage: widget.apartment.images.first,
+  apartmentImage: widget.apartment.images.isNotEmpty ? widget.apartment.images.first : null,
 
   roomId: widget.room.id!,
   roomName: widget.room.roomType,
 
-  userId: user!.uid,
+  userId: user.uid,
   hostId: widget.apartment.ownerId, 
   guestName: "${guestInfo!.firstName} ${guestInfo!.lastName}",
   guestEmail: guestInfo!.email,
+  guestPhone: guestInfo!.phone,
 
   checkIn: guestInfo!.checkInDate,
   checkOut: guestInfo!.checkOutDate,
@@ -353,6 +361,13 @@ await FirebaseFirestore.instance
     .update({
   "bookingId": bookingRef.id,
 });
+  // For monthly: stayTotal shown in PaymentPriceCard should be the first
+  // month rent only, so all line items sum to totalDueToday.
+  // For daily: stayTotal is the full stay cost (priceDaily × nights).
+  final displayStayTotal = widget.room.pricingMode == 'monthly'
+      ? _roomBasePrice
+      : _stayTotal;
+
   Navigator.of(context).push(
   PageRouteBuilder(
     transitionDuration: const Duration(milliseconds: 250),
@@ -360,9 +375,9 @@ await FirebaseFirestore.instance
     pageBuilder: (context, animation, secondaryAnimation) => PaymentScreen(
       bookingId: bookingRef.id,
       apartmentName: widget.apartment.name,
-      apartmentImage: widget.apartment.images.first,
+      apartmentImage: widget.apartment.images.isNotEmpty ? widget.apartment.images.first : null,
       apartmentAddress: widget.apartment.address,
-      stayTotal: _stayTotal,
+      stayTotal: displayStayTotal,
       serviceFee: _serviceFee,
       securityDeposit: _securityDeposit,
       totalPrice: _totalDueToday,
@@ -800,10 +815,24 @@ Widget build(BuildContext context) {
           const SizedBox(height: 16),
 
 _PriceRow(
-  label: 'Room price (₱${fmt(roomBasePrice)} / ${pricingMode == 'daily' ? 'day' : 'month'} × $stayDuration $durationLabel)',
-  value: '₱${fmt(roomBasePrice * stayDuration)}',
+  label: isDaily
+      ? 'Room price (₱${fmt(roomBasePrice)} / day × $stayDuration $durationLabel)'
+      : 'First month rent (₱${fmt(roomBasePrice)} / month)',
+  value: isDaily
+      ? '₱${fmt(roomBasePrice * stayDuration)}'
+      : '₱${fmt(roomBasePrice)}',
   context: context,
 ),
+
+if (!isDaily && stayDuration > 1) ...[
+  const SizedBox(height: 10),
+  _PriceRow(
+    label: 'Total stay (₱${fmt(roomBasePrice)} × $stayDuration months)',
+    value: '₱${fmt(roomBasePrice * stayDuration)}',
+    context: context,
+    isSubtle: true,
+  ),
+],
 
           const SizedBox(height: 10),
 
@@ -1113,11 +1142,13 @@ class _PriceRow extends StatelessWidget {
   final String       label;
   final String       value;
   final BuildContext context;
+  final bool         isSubtle;
 
   const _PriceRow({
     required this.label,
     required this.value,
     required this.context,
+    this.isSubtle = false,
   });
 
   @override
@@ -1128,9 +1159,10 @@ class _PriceRow extends StatelessWidget {
     Expanded(
       child: Text(
         label,
-        style: const TextStyle(
-          fontSize: 13.5,
+        style: TextStyle(
+          fontSize: isSubtle ? 12 : 13.5,
           color: AppColors.textMid,
+          fontStyle: isSubtle ? FontStyle.italic : FontStyle.normal,
         ),
       ),
     ),
@@ -1138,9 +1170,10 @@ class _PriceRow extends StatelessWidget {
     Text(
       value,
       style: TextStyle(
-        fontSize: 13.5,
+        fontSize: isSubtle ? 12 : 13.5,
         fontWeight: FontWeight.w600,
-        color: AppColors.text(context),
+        color: isSubtle ? AppColors.textMid : AppColors.text(context),
+        fontStyle: isSubtle ? FontStyle.italic : FontStyle.normal,
       ),
     ),
   ],

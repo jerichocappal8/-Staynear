@@ -8,7 +8,7 @@ import '../../../core/app_colors.dart';
 
 class PaymentSummaryCard extends StatelessWidget {
   final String name;
-  final String imageUrl;
+  final String? imageUrl;
   final String address;
   final double totalPrice;
 
@@ -34,9 +34,9 @@ class PaymentSummaryCard extends StatelessWidget {
           // ── Property image ──────────────────────────────────────────
           ClipRRect(
             borderRadius: BorderRadius.circular(14),
-            child: imageUrl.isNotEmpty
+            child: imageUrl?.isNotEmpty ?? false
                 ? Image.network(
-                    imageUrl,
+                    imageUrl ?? '',
                     width: 88,
                     height: 88,
                     fit: BoxFit.cover,

@@ -35,8 +35,11 @@ Future<void> main() async {
     persistenceEnabled: true,
   );
 
-  Stripe.publishableKey =
-      "pk_test_51TA7mDEF3hIooLTXxM34PAOAsfUUukr2zuHNzvbmdnmuomGC6dPpxXTuujpWuVz23CCwhsdm982edsFr9BMyqCMc00EkZZ4hvO";
+  const stripeKey = String.fromEnvironment('STRIPE_PUBLISHABLE_KEY');
+  if (stripeKey.isEmpty) {
+    throw Exception('Missing STRIPE_PUBLISHABLE_KEY. Run with --dart-define=STRIPE_PUBLISHABLE_KEY=your_key_here');
+  }
+  Stripe.publishableKey = stripeKey;
 
   await Stripe.instance.applySettings();
 

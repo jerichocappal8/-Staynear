@@ -23,7 +23,7 @@ import 'widgets/payment_confirm_button.dart';
 class PaymentScreen extends StatefulWidget {
   final String bookingId;
   final String apartmentName;
-  final String apartmentImage;
+  final String? apartmentImage;
   final String apartmentAddress;
   final double stayTotal;
   final double serviceFee;
@@ -67,10 +67,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
     if (!snap.exists) return;
 
     final data = snap.data()!;
+    if (!mounted) return;
     setState(() {
       _pricingMode = data['pricingMode'] ?? 'daily';
     });
   }
+
   // ══════════════════════════════════════════════════════════════════════════
   //  STRIPE — initialise PaymentSheet via Cloud Function
   // ══════════════════════════════════════════════════════════════════════════
@@ -90,112 +92,155 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
 
     try {
-  await Stripe.instance.presentPaymentSheet();
-} on StripeException catch (e) {
-  throw Exception("Payment cancelled");
-}
+      await Stripe.instance.presentPaymentSheet();
+    } on StripeException {
+      throw Exception("payment_cancelled");
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  CONFIRM & PAY — unchanged backend logic
+  //  CONFIRM & PAY
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<void> _confirmAndPay() async {
     setState(() => _loading = true);
 
     try {
-      // 1. Stripe PaymentSheet
-final bookingRef = FirebaseFirestore.instance
-    .collection('bookings')
-    .doc(widget.bookingId);
+      final bookingRef = FirebaseFirestore.instance
+          .collection('bookings')
+          .doc(widget.bookingId);
 
-// Fetch booking data
-final bookingSnap = await bookingRef.get();
-if (!bookingSnap.exists) throw Exception('Booking document not found.');
+      // Fetch latest booking data
+      final bookingSnap = await bookingRef.get();
+      if (!bookingSnap.exists) throw Exception('Booking document not found.');
 
-final data = bookingSnap.data()!;
+      final data = bookingSnap.data()!;
 
-// Pricing mode
-final String pricingMode = data['pricingMode'] ?? 'daily';
+      // ── Duplicate-payment guard ─────────────────────────────────────────
+      final currentBookingStatus = (data['bookingStatus'] ?? '').toString();
+      final currentPaymentStatus = (data['paymentStatus'] ?? '').toString();
+      if (currentBookingStatus == 'confirmed' || currentPaymentStatus == 'paid') {
+        if (!mounted) return;
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This booking has already been paid.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+        return;
+      }
 
-final double monthlyPrice = (data['priceMonthly'] ?? 0).toDouble();
+      // Pricing mode
+      final String pricingMode = data['pricingMode'] ?? 'daily';
+      final double monthlyPrice = (data['priceMonthly'] ?? 0).toDouble();
 
-// Calculate correct payment
-double amountToCharge;
+      // DEMO/CAPSTONE MODE: PaymentSheet confirms on the client, then the app
+      // records booking/payment side effects below. Production should move these
+      // writes to a trusted backend or Stripe webhook.
+      final double amountToCharge = widget.totalPrice;
 
-if (pricingMode == 'monthly') {
-  // First month + deposit
-  amountToCharge = monthlyPrice + widget.securityDeposit;
-} else {
-  // Daily = pay full stay
-  amountToCharge = widget.totalPrice;
-}
+      // ── Stripe — early return on cancellation, no Firestore writes ───────
+      try {
+        await _startStripePayment(amountToCharge);
+      } catch (e) {
+        if (mounted) setState(() => _loading = false);
+        if (!mounted) return;
+        if (!e.toString().contains('payment_cancelled')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_paymentErrorMessage(e)),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+        }
+        return;
+      }
 
-// Now start Stripe payment
-await _startStripePayment(amountToCharge);
+      // ── Validate doc path fields before building refs ────────────────────
+      final apartmentId = data['apartmentId'] as String?;
+      final roomId = data['roomId'] as String?;
+      if (apartmentId == null || apartmentId.isEmpty) {
+        throw Exception('Missing apartmentId on booking.');
+      }
+      if (roomId == null || roomId.isEmpty) {
+        throw Exception('Missing roomId on booking.');
+      }
 
-      // 3. Update booking status
-      await bookingRef.update({
+      // ── Pre-allocate refs so WriteBatch can use .set() ──────────────────
+      final paymentRef =
+          FirebaseFirestore.instance.collection('payments').doc();
+      final occupancyRef =
+          FirebaseFirestore.instance.collection('room_occupancy').doc();
+      final roomRef = FirebaseFirestore.instance
+          .collection('properties')
+          .doc(apartmentId)
+          .collection('rooms')
+          .doc(roomId);
+
+      // ── WriteBatch: all 4 core writes land atomically ───────────────────
+      final batch = FirebaseFirestore.instance.batch();
+
+      // 1. Update booking status
+      batch.update(bookingRef, {
         'amountPaid': FieldValue.increment(amountToCharge),
         'remainingBalance': pricingMode == 'monthly'
-    ? FieldValue.increment(-(monthlyPrice))
-    : 0,
-        'paymentStatus': 'partial',
+            ? FieldValue.increment(-(monthlyPrice))
+            : 0,
+        'paymentStatus': pricingMode == 'daily' ? 'paid' : 'partial',
         'bookingStatus': 'confirmed',
         'paidAt': Timestamp.now(),
       });
 
-// 4. Write payment history
-final payment = PaymentModel(
-  bookingId: widget.bookingId,
-  amount: amountToCharge,
-  method: 'card',
-  status: 'success',
-  createdAt: DateTime.now(),
-);
+      // 2. Write payment record
+      final payment = PaymentModel(
+        bookingId:  widget.bookingId,
+        userId:     (data['userId']      as String?) ?? '',
+        hostId:     (data['hostId']      as String?) ?? '',
+        propertyId: (data['apartmentId'] as String?) ?? '',
+        amount:     amountToCharge,
+        method:     'card',
+        status:     'success',
+        createdAt:  DateTime.now(),
+      );
+      batch.set(paymentRef, payment.toMap());
 
-final paymentRef = await FirebaseFirestore.instance
-    .collection('payments')
-    .add(payment.toMap());
-
-// ── attach payment to chat conversation ──
-final convoSnap = await FirebaseFirestore.instance
-    .collection("conversations")
-    .where("bookingId", isEqualTo: widget.bookingId)
-    .limit(1)
-    .get();
-
-if (convoSnap.docs.isNotEmpty) {
-  await convoSnap.docs.first.reference.update({
-    "paymentId": paymentRef.id,
-  });
-}
-
-      // 5. Create room occupancy record
-      await FirebaseFirestore.instance.collection('room_occupancy').add({
-        'bookingId': widget.bookingId,
-        'apartmentId': data['apartmentId'],
+      // 3. Create room occupancy record
+      batch.set(occupancyRef, {
+        'bookingId':     widget.bookingId,
+        'apartmentId':   data['apartmentId'],
         'apartmentName': data['apartmentName'],
-        'roomId': data['roomId'],
-        'roomType': data['roomName'],
-        'checkIn': data['checkIn'],
-        'hostId': data['hostId'],
-        'checkOut': data['checkOut'],
-        'pricingMode': data['pricingMode'],
-        'guestName': data['guestName'],
-        'guestEmail': data['guestEmail'],
-        'guestId': data['userId'],
-        'status': 'occupied',
-        'createdAt': Timestamp.now(),
+        'roomId':        data['roomId'],
+        'roomType':      data['roomName'],
+        'checkIn':       data['checkIn'],
+        'hostId':        data['hostId'],
+        'checkOut':      data['checkOut'],
+        'pricingMode':   data['pricingMode'],
+        'guestName':     data['guestName'],
+        'guestEmail':    data['guestEmail'],
+        'guestId':       data['userId'],
+        'status':        'occupied',
+        'createdAt':     Timestamp.now(),
       });
 
-      // 6. Reduce available units
-      await FirebaseFirestore.instance
-          .collection('properties')
-          .doc(data['apartmentId'])
-          .collection('rooms')
-          .doc(data['roomId'])
-          .update({'availableUnits': FieldValue.increment(-1)});
+      // 4. Decrement available units
+      batch.update(roomRef, {'availableUnits': FieldValue.increment(-1)});
+
+      await batch.commit();
+
+      // ── Conversation update — kept separate (requires a query) ──────────
+      final convoSnap = await FirebaseFirestore.instance
+          .collection('conversations')
+          .where('bookingId', isEqualTo: widget.bookingId)
+          .where('userId', isEqualTo: data['userId'])
+          .limit(1)
+          .get();
+
+      if (convoSnap.docs.isNotEmpty) {
+        await convoSnap.docs.first.reference.update({
+          'paymentId': paymentRef.id,
+        });
+      }
 
       if (!mounted) return;
 
@@ -210,13 +255,47 @@ if (convoSnap.docs.isNotEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Payment failed: $e'),
+          content: Text(_paymentErrorMessage(e)),
           backgroundColor: AppColors.danger,
         ),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  String _paymentErrorMessage(Object error) {
+    if (error is FirebaseFunctionsException) {
+      switch (error.code) {
+        case 'unauthenticated':
+          return "Please sign in again before paying.";
+        case 'invalid-argument':
+          return "Payment amount is invalid. Please refresh and try again.";
+        case 'unavailable':
+        case 'deadline-exceeded':
+          return "Payment service is temporarily unavailable. Please try again.";
+        default:
+          return "Could not start payment. Please try again.";
+      }
+    }
+
+    if (error is FirebaseException) {
+      switch (error.code) {
+        case 'permission-denied':
+          return "Payment could not be saved because booking access changed. If you were charged, contact support.";
+        case 'unavailable':
+        case 'deadline-exceeded':
+          return "Could not save payment details. Please check your connection and try again.";
+        default:
+          return "Could not finish updating your booking. Please try again.";
+      }
+    }
+
+    if (error.toString().contains('payment_cancelled')) {
+      return "Payment was cancelled.";
+    }
+
+    return "Payment could not be completed. Please try again.";
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -256,49 +335,49 @@ if (convoSnap.docs.isNotEmpty) {
                   const SizedBox(height: 16),
 
                   PaymentPriceCard(
-  stayTotal: widget.stayTotal,
-  serviceFee: widget.serviceFee,
-  securityDeposit: widget.securityDeposit,
-  grandTotal: widget.totalPrice,
-),
+                    stayTotal: widget.stayTotal,
+                    serviceFee: widget.serviceFee,
+                    securityDeposit: widget.securityDeposit,
+                    grandTotal: widget.totalPrice,
+                  ),
 
-if (_pricingMode == 'monthly') ...[
-  const SizedBox(height: 12),
-  Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: AppColors.orangeLight.withOpacity(.25),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(
-        color: AppColors.primaryOrange.withOpacity(.25),
-      ),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(
-          Icons.info_outline_rounded,
-          size: 16,
-          color: AppColors.primaryOrange,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            "You only need to pay the first month's rent today. "
-            "The remaining balance will be paid monthly during your stay.",
-            style: TextStyle(
-              fontSize: 12.5,
-              color: AppColors.text(context),
-              height: 1.4,
-            ),
-          ),
-        ),
-      ],
-    ),
-  ),
-],
+                  if (_pricingMode == 'monthly') ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.orangeLight.withOpacity(.25),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.primaryOrange.withOpacity(.25),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.info_outline_rounded,
+                            size: 16,
+                            color: AppColors.primaryOrange,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              "You only need to pay the first month's rent today. "
+                              "The remaining balance will be paid monthly during your stay.",
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: AppColors.text(context),
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
 
-const SizedBox(height: 8),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../admin/admin_dashboard.dart';
 import '../../core/settings_prefs.dart';
 import '../../services/biometric_service.dart';
 import '../auth/auth_screen.dart';
@@ -28,6 +30,7 @@ Future<void> _startApp() async {
   await LocationService.detectLocation();
 
   await Future.delayed(const Duration(milliseconds: 800));
+  if (!mounted) return;
 
   /// check onboarding first
   final seenOnboarding =
@@ -56,24 +59,46 @@ Future<void> _startApp() async {
       SettingsPrefs.getBool(SettingsPrefs.kSecurityBiometric);
 
   if (!biometricEnabled) {
-    _goToHome();
+    await _goToHome();
     return;
   }
 
   /// authenticate
   final authenticated = await BiometricService.authenticate();
+  if (!mounted) return;
 
   if (authenticated) {
-    _goToHome();
+    await _goToHome();
   } else {
     _goToLogin();
   }
 }
 
-void _goToHome() {
+Future<void> _goToHome() async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  var role = 'user';
+
+  if (uid != null) {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      role = (doc.data()?['role'] ?? 'user').toString();
+    } catch (_) {
+      role = 'user';
+    }
+  }
+
+  if (!mounted) return;
+
   Navigator.pushReplacement(
     context,
-    MaterialPageRoute(builder: (_) => const MainShell()),
+    MaterialPageRoute(
+      builder: (_) => role == 'admin'
+          ? const AdminDashboard()
+          : const MainShell(),
+    ),
   );
 }
 
