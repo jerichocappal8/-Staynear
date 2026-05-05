@@ -217,14 +217,33 @@ for (final doc in docs) {
   });
 }
 
-      // ── Client-side price filters ─────────────────────────────────────
-      final minP = (_filters['minPrice'] ?? 0) as num;
-      final maxP = (_filters['maxPrice'] ?? 1000000) as num;
+      // ── Extract all filter params upfront ────────────────────────────
+      final minP            = (_filters['minPrice']         ?? 0)       as num;
+      final maxP            = (_filters['maxPrice']         ?? 1000000) as num;
+      final priceModeFilter = (_filters['pricingMode']      as String?) ?? '';
+      final guestFilter     = (_filters['maxOccupants']     as int?)    ?? 0;
+      final genderFilter    = (_filters['genderRestriction'] as String?) ?? '';
+      final availableOnly   = (_filters['availableOnly']    as bool?)   ?? false;
 
-      List<Map<String, dynamic>> filtered = enriched.where((e) {
-        final price = e['minPrice'] as double;
-        return price >= minP && price <= maxP;
-      }).toList();
+      // True when any filter requires inspecting the rooms subcollection.
+      final hasRoomFilters =
+          priceModeFilter.isNotEmpty ||
+          guestFilter > 0            ||
+          genderFilter.isNotEmpty    ||
+          availableOnly;
+
+      // ── Client-side price pre-filter ──────────────────────────────────
+      // Skip when pricingMode is selected: property.minPrice is computed from
+      // the cheapest room's active mode and may differ from the selected mode,
+      // causing false negatives. The room-level block below applies the
+      // precise per-mode price check.
+      List<Map<String, dynamic>> filtered =
+          (hasRoomFilters && priceModeFilter.isNotEmpty)
+              ? enriched.toList()
+              : enriched.where((e) {
+                  final price = e['minPrice'] as double;
+                  return price >= minP && price <= maxP;
+                }).toList();
 
       // ── Client-side rating filter ─────────────────────────────────────
       final minRating = _filters['rating'];
@@ -244,6 +263,79 @@ for (final doc in docs) {
           final prop = List<String>.from((d.data() as Map)['amenities'] ?? []);
           return amenities.every((a) => prop.contains(a));
         }).toList();
+      }
+
+      // ── Room-level filter ─────────────────────────────────────────────
+      // Only runs when at least one room-level filter is active.
+      // For each property that survived property-level filters, we fetch its
+      // rooms subcollection and keep the property only when at least one room
+      // satisfies ALL active room-level filters simultaneously.
+      // The matching room's price overwrites the cache so cards and map markers
+      // show the correct price for the selected mode.
+      if (hasRoomFilters) {
+        final List<Map<String, dynamic>> roomFiltered = [];
+
+        for (final e in filtered) {
+          final doc = e['doc'] as QueryDocumentSnapshot;
+
+          final roomsSnap = await FirebaseFirestore.instance
+              .collection('properties')
+              .doc(doc.id)
+              .collection('rooms')
+              .get();
+
+          double? matchPrice;
+          String? matchMode;
+
+          for (final roomDoc in roomsSnap.docs) {
+            final r        = roomDoc.data() as Map<String, dynamic>;
+            final roomMode = (r['pricingMode'] as String?) ?? 'monthly';
+
+            // pricingMode: room mode must equal the selected mode
+            if (priceModeFilter.isNotEmpty && roomMode != priceModeFilter) continue;
+
+            // maxOccupants: room must fit at least the requested guest count
+            if (guestFilter > 0) {
+              final cap = (r['maxOccupants'] as num? ?? 0).toInt();
+              if (cap < guestFilter) continue;
+            }
+
+            // genderRestriction: 'open' rooms satisfy any gender filter value
+            if (genderFilter.isNotEmpty) {
+              final roomGender = (r['genderRestriction'] as String?) ?? 'open';
+              if (roomGender != genderFilter && roomGender != 'open') continue;
+            }
+
+            // availableOnly: room must be marked available with units remaining
+            if (availableOnly) {
+              final isAvail = r['isAvailable'] as bool? ?? true;
+              final units   = (r['availableUnits'] as num? ?? 0).toInt();
+              if (!isAvail || units <= 0) continue;
+            }
+
+            // Price: use the room's own price for the active mode
+            final roomPrice = roomMode == 'daily'
+                ? (r['priceDaily']   as num? ?? 0).toDouble()
+                : (r['priceMonthly'] as num? ?? 0).toDouble();
+
+            if (roomPrice < minP || roomPrice > maxP) continue;
+
+            // This room passes every active filter — record it and stop
+            matchPrice = roomPrice;
+            matchMode  = roomMode;
+            break;
+          }
+
+          if (matchPrice != null) {
+            roomFiltered.add({
+              'doc':       e['doc'],
+              'minPrice':  matchPrice,
+              'priceMode': matchMode ?? 'monthly',
+            });
+          }
+        }
+
+        filtered = roomFiltered;
       }
 
       // ── Build result list and price cache ─────────────────────────────

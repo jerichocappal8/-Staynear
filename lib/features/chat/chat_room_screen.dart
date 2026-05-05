@@ -313,51 +313,34 @@ Future<void> _pickAndSendImage() async {
         ),
       ),
       title: Row(children: [
-        // avatar with online ring
-        Stack(
-          children: [
-            Container(
-              width:  42,
-              height: 42,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                    color: AppColors.primaryOrange.withOpacity(.35), width: 2),
-              ),
-              child: CircleAvatar(
-                radius: 19,
-                backgroundColor: AppColors.orangeLight,
-                backgroundImage: widget.otherParticipantPhoto.isNotEmpty
-                    ? CachedNetworkImageProvider(widget.otherParticipantPhoto)
-                    : null,
-                child: widget.otherParticipantPhoto.isEmpty
-                    ? Text(
-                        widget.otherParticipantName.isNotEmpty
-                            ? widget.otherParticipantName[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          fontSize:   15,
-                          fontWeight: FontWeight.w800,
-                          color:      AppColors.primaryOrange,
-                        ),
-                      )
-                    : null,
-              ),
-            ),
-            Positioned(
-              right: 1, bottom: 1,
-              child: Container(
-                width:  11,
-                height: 11,
-                decoration: BoxDecoration(
-                  color:  const Color(0xFF22C55E),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                      color: AppColors.background(context), width: 2),
-                ),
-              ),
-            ),
-          ],
+        // avatar
+        Container(
+          width:  42,
+          height: 42,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+                color: AppColors.primaryOrange.withOpacity(.35), width: 2),
+          ),
+          child: CircleAvatar(
+            radius: 19,
+            backgroundColor: AppColors.orangeLight,
+            backgroundImage: widget.otherParticipantPhoto.isNotEmpty
+                ? CachedNetworkImageProvider(widget.otherParticipantPhoto)
+                : null,
+            child: widget.otherParticipantPhoto.isEmpty
+                ? Text(
+                    widget.otherParticipantName.isNotEmpty
+                        ? widget.otherParticipantName[0].toUpperCase()
+                        : '?',
+                    style: const TextStyle(
+                      fontSize:   15,
+                      fontWeight: FontWeight.w800,
+                      color:      AppColors.primaryOrange,
+                    ),
+                  )
+                : null,
+          ),
         ),
 
         const SizedBox(width: 10),
@@ -376,21 +359,25 @@ Future<void> _pickAndSendImage() async {
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 1),
-              Row(children: [
-                Container(
-                  width:  6,
-                  height: 6,
-                  decoration: const BoxDecoration(
-                      color: Color(0xFF22C55E), shape: BoxShape.circle),
-                ),
-                const SizedBox(width: 4),
-                const Text('Online',
-                    style: TextStyle(
-                        fontSize:   11,
-                        color:      Color(0xFF22C55E),
-                        fontWeight: FontWeight.w600)),
-              ]),
+              // Property name as subtitle — replaces the fake "Online" indicator.
+              if (widget.propertyName.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Row(children: [
+                  const Icon(Icons.apartment_rounded,
+                      size: 10, color: AppColors.textLight),
+                  const SizedBox(width: 3),
+                  Flexible(
+                    child: Text(
+                      widget.propertyName,
+                      style: const TextStyle(
+                          fontSize:   11,
+                          color:      AppColors.textMid,
+                          fontWeight: FontWeight.w500),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ]),
+              ],
             ],
           ),
         ),

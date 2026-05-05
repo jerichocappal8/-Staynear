@@ -54,22 +54,32 @@ class ApartmentModel {
 
     final GeoPoint? geo = data['coordinates'];
 
+    // Images: prefer imageUrls (current schema), fall back to images (old schema).
+    final imageList = List<String>.from(data['imageUrls'] ?? data['images'] ?? []);
+
+    // Cover: use stored coverImageUrl when present, otherwise first image.
+    final cover = (data['coverImageUrl'] as String? ?? '').isNotEmpty
+        ? data['coverImageUrl'] as String
+        : imageList.isNotEmpty ? imageList.first : '';
+
     return ApartmentModel(
       id: doc.id,
       name: data['name'] ?? '',
-      address: data['address'] ?? '',
+      // Address: current schema writes 'address'; old data may use 'location'.
+      address: (data['address'] as String? ?? data['city'] as String? ?? data['location'] as String? ?? ''),
       ownerId: data['ownerId'] ?? '',
       category: data['category'] ?? '',
       description: data['description'] ?? '',
       rating: (data['rating'] ?? 0).toDouble(),
       reviewCount: data['reviewCount'] ?? 0,
-      minPrice: (data['minPrice'] ?? 0).toDouble(),
+      // Price: current schema writes 'minPrice'; old data may use 'price'.
+      minPrice: ((data['minPrice'] ?? data['price'] ?? 0) as num).toDouble(),
 
       lat: geo?.latitude ?? 0,
       lng: geo?.longitude ?? 0,
 
-      images: List<String>.from(data['imageUrls'] ?? []),
-      coverImageUrl: data['coverImageUrl'] ?? '',
+      images: imageList,
+      coverImageUrl: cover,
 
       facilities: List<String>.from(data['amenities'] ?? []),
       houseRules: List<String>.from(data['houseRules'] ?? []),

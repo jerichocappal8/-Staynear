@@ -12,6 +12,9 @@ class GuestInfoModel {
   final int       roomsCount;
   final int       guestsCount;
   final String    specialRequests;
+  // The user-selected stay length for monthly bookings. 0 for daily bookings.
+  // This is the source of truth — do not recompute from date difference.
+  final int       stayMonths;
 
   const GuestInfoModel({
     required this.firstName,
@@ -23,6 +26,7 @@ class GuestInfoModel {
     required this.roomsCount,
     required this.guestsCount,
     this.specialRequests = '',
+    this.stayMonths = 0,
   });
 
   GuestInfoModel copyWith({
@@ -35,6 +39,7 @@ class GuestInfoModel {
     int?      roomsCount,
     int?      guestsCount,
     String?   specialRequests,
+    int?      stayMonths,
   }) {
     return GuestInfoModel(
       firstName:       firstName       ?? this.firstName,
@@ -46,6 +51,7 @@ class GuestInfoModel {
       roomsCount:      roomsCount      ?? this.roomsCount,
       guestsCount:     guestsCount     ?? this.guestsCount,
       specialRequests: specialRequests ?? this.specialRequests,
+      stayMonths:      stayMonths      ?? this.stayMonths,
     );
   }
 

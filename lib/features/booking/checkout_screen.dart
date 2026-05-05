@@ -57,16 +57,12 @@ double get _securityDeposit =>
 double get _roomBasePrice => widget.room.activePrice;
 int get _stayDuration {
   if (guestInfo == null) return 0;
-
-  final days = guestInfo!.checkOutDate
-      .difference(guestInfo!.checkInDate)
-      .inDays;
-
   if (widget.room.pricingMode == 'daily') {
-    return days;
-  } else {
-    return (days / 30).floor();
+    return guestInfo!.checkOutDate.difference(guestInfo!.checkInDate).inDays;
   }
+  // Monthly: use the value the user selected — never recompute from dates.
+  // days/30 is wrong for short months (e.g. Feb gives 0 for a 1-month stay).
+  return guestInfo!.stayMonths;
 }
 
   double get _stayTotal {
@@ -89,17 +85,10 @@ if (guestInfo == null) {
     return priceDaily * nights;
 
   } else {
-
-final days = guestInfo!.checkOutDate
-    .difference(guestInfo!.checkInDate)
-    .inDays;
-
-final months = (days / 30).floor();
-
     final priceMonthly =
         double.tryParse(widget.room.priceMonthly.trim()) ?? 0;
-
-    return priceMonthly * months;
+    // Use stayMonths directly — same source of truth as _stayDuration.
+    return priceMonthly * guestInfo!.stayMonths;
   }
 }
 
@@ -783,23 +772,24 @@ class _PriceDetailsCard extends StatelessWidget {
   final String pricingMode;
   final String Function(double) fmt;
 
-const _PriceDetailsCard({
-  required this.roomBasePrice,
-  required this.securityDeposit,
-  required this.serviceFee,
-  required this.totalDueToday,
-  required this.pricingMode,
-  required this.stayDuration,
-  required this.fmt,
-});
+  const _PriceDetailsCard({
+    required this.roomBasePrice,
+    required this.securityDeposit,
+    required this.serviceFee,
+    required this.totalDueToday,
+    required this.pricingMode,
+    required this.stayDuration,
+    required this.fmt,
+  });
 
-@override
-Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
+    final isDaily        = pricingMode == 'daily';
+    final fullStayTotal  = roomBasePrice * stayDuration;
+    // Remaining = full stay minus the first month already covered by totalDueToday.
+    final remainingRent  = fullStayTotal - roomBasePrice;
 
-  final isDaily = pricingMode == 'daily';
-  final durationLabel = isDaily ? 'days' : 'months';
-
-  return _SectionCard(
+    return _SectionCard(
       context: context,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -807,47 +797,53 @@ Widget build(BuildContext context) {
           Text(
             'Price details',
             style: TextStyle(
-              fontSize: 15,
+              fontSize:   15,
               fontWeight: FontWeight.w800,
-              color: AppColors.text(context),
+              color:      AppColors.text(context),
             ),
           ),
 
           const SizedBox(height: 16),
 
-_PriceRow(
-  label: isDaily
-      ? 'Room price (₱${fmt(roomBasePrice)} / day × $stayDuration $durationLabel)'
-      : 'First month rent (₱${fmt(roomBasePrice)} / month)',
-  value: isDaily
-      ? '₱${fmt(roomBasePrice * stayDuration)}'
-      : '₱${fmt(roomBasePrice)}',
-  context: context,
-),
+          // ── Daily: single "rate × nights" row ─────────────────────────
+          if (isDaily)
+            _PriceRow(
+              label:   'Room price (₱${fmt(roomBasePrice)} / day × $stayDuration days)',
+              value:   '₱${fmt(fullStayTotal)}',
+              context: context,
+            ),
 
-if (!isDaily && stayDuration > 1) ...[
-  const SizedBox(height: 10),
-  _PriceRow(
-    label: 'Total stay (₱${fmt(roomBasePrice)} × $stayDuration months)',
-    value: '₱${fmt(roomBasePrice * stayDuration)}',
-    context: context,
-    isSubtle: true,
-  ),
-],
+          // ── Monthly: rate formula row + full stay row ──────────────────
+          if (!isDaily) ...[
+            _PriceRow(
+              label:   'Monthly Rent',
+              value:   '₱${fmt(roomBasePrice)} × $stayDuration month${stayDuration == 1 ? '' : 's'}',
+              context: context,
+            ),
+            if (stayDuration > 1) ...[
+              const SizedBox(height: 10),
+              _PriceRow(
+                label:   'Full Stay Rent',
+                value:   '₱${fmt(fullStayTotal)}',
+                context: context,
+                isBold:  true,
+              ),
+            ],
+          ],
 
           const SizedBox(height: 10),
 
           _PriceRow(
-            label: 'Security deposit',
-            value: '₱${fmt(securityDeposit)}',
+            label:   'Security Deposit',
+            value:   '₱${fmt(securityDeposit)}',
             context: context,
           ),
 
           const SizedBox(height: 10),
 
           _PriceRow(
-            label: 'Service fee',
-            value: '₱${fmt(serviceFee)}',
+            label:   'Service Fee',
+            value:   '₱${fmt(serviceFee)}',
             context: context,
           ),
 
@@ -860,55 +856,57 @@ if (!isDaily && stayDuration > 1) ...[
               Text(
                 'Total Due Today',
                 style: TextStyle(
-                  fontSize: 15,
+                  fontSize:   15,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.text(context),
+                  color:      AppColors.text(context),
                 ),
               ),
               const Spacer(),
               Text(
                 '₱${fmt(totalDueToday)}',
                 style: const TextStyle(
-                  fontSize: 22,
+                  fontSize:   22,
                   fontWeight: FontWeight.w900,
-                  color: AppColors.primaryOrange,
+                  color:      AppColors.primaryOrange,
                 ),
               ),
             ],
           ),
+
           const SizedBox(height: 10),
 
-if (pricingMode == 'monthly')
-  Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: AppColors.orangeLight.withOpacity(0.25),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: AppColors.primaryOrange.withOpacity(0.25)),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(
-          Icons.info_outline_rounded,
-          size: 16,
-          color: AppColors.primaryOrange,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            "You only need to pay the first month's rent today. "
-            "The remaining balance will be paid monthly during your stay.",
-            style: TextStyle(
-              fontSize: 12.5,
-              color: AppColors.text(context),
-              height: 1.4,
+          // ── Helper note (monthly only) ────────────────────────────────
+          if (!isDaily)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color:        AppColors.orangeLight.withOpacity(0.25),
+                borderRadius: BorderRadius.circular(12),
+                border:       Border.all(
+                    color: AppColors.primaryOrange.withOpacity(0.25)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline_rounded,
+                      size: 16, color: AppColors.primaryOrange),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      stayDuration <= 1
+                          ? "You're paying the full stay today."
+                          : "You only pay the first month's rent today. "
+                            "Remaining rent balance: ₱${fmt(remainingRent)}.",
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color:    AppColors.text(context),
+                        height:   1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
-      ],
-    ),
-  ),
         ],
       ),
     );
@@ -1143,41 +1141,43 @@ class _PriceRow extends StatelessWidget {
   final String       label;
   final String       value;
   final BuildContext context;
-  final bool         isSubtle;
+  // isBold: used for the "Full Stay Rent" row — label and value both use the
+  // primary text color and heavier weight to stand out above secondary rows
+  // but remain below the orange "Total Due Today" in visual hierarchy.
+  final bool         isBold;
 
   const _PriceRow({
     required this.label,
     required this.value,
     required this.context,
-    this.isSubtle = false,
+    this.isBold = false,
   });
 
   @override
   Widget build(BuildContext _) {
     return Row(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-    Expanded(
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: isSubtle ? 12 : 13.5,
-          color: AppColors.textMid,
-          fontStyle: isSubtle ? FontStyle.italic : FontStyle.normal,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize:   13.5,
+              fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
+              color:      isBold ? AppColors.text(context) : AppColors.textMid,
+            ),
+          ),
         ),
-      ),
-    ),
-    const SizedBox(width: 8),
-    Text(
-      value,
-      style: TextStyle(
-        fontSize: isSubtle ? 12 : 13.5,
-        fontWeight: FontWeight.w600,
-        color: isSubtle ? AppColors.textMid : AppColors.text(context),
-        fontStyle: isSubtle ? FontStyle.italic : FontStyle.normal,
-      ),
-    ),
-  ],
-);
+        const SizedBox(width: 8),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize:   13.5,
+            fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
+            color:      isBold ? AppColors.text(context) : AppColors.text(context),
+          ),
+        ),
+      ],
+    );
   }
 }

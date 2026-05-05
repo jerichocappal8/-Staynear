@@ -16,10 +16,12 @@ class Property {
   factory Property.fromMap(String id, Map<String, dynamic> data) {
     return Property(
       id: id,
-      name: data['name'],
-      price: (data['price'] as num).toDouble(),
-      city: data['city'],
-      rating: (data['rating'] as num).toDouble(),
+      name: data['name'] ?? '',
+      // Current schema writes minPrice; old data may use price.
+      price: ((data['minPrice'] ?? data['price'] ?? 0) as num).toDouble(),
+      // Current schema writes city; old data may store it in address or location.
+      city: (data['city'] as String? ?? data['address'] as String? ?? data['location'] as String? ?? ''),
+      rating: ((data['rating'] ?? 0) as num).toDouble(),
     );
   }
 }

@@ -326,6 +326,30 @@ if (amountPaidVal <= 0) {
   paymentStatus = 'paid';
 }
 
+// ── Auto-complete: write 'completed' once when the confirmed booking's
+// checkOut timestamp has passed.
+//
+// Conditions (all must be true):
+//   • bookingStatus == 'confirmed'   (not pending / cancelled / already completed)
+//   • checkOut is a valid Timestamp
+//   • checkOut is in the past
+//
+// Idempotent: on the next open, bookingStatus is already 'completed'
+// so the first condition fails — no duplicate write.
+// The StreamBuilder refreshes the UI automatically on a successful write.
+// Firestore rule allows this: bookingStatus is in bookingUserUpdateFields().
+if (bookingStatus == 'confirmed' && checkOut is Timestamp) {
+  if (DateTime.now().isAfter((checkOut as Timestamp).toDate())) {
+    FirebaseFirestore.instance
+        .collection('bookings')
+        .doc(widget.bookingId)
+        .update({'bookingStatus': 'completed'})
+        .catchError((e) {
+          debugPrint('[BookingDetail] auto-complete write failed: $e');
+        });
+  }
+}
+
     return Scaffold(
       backgroundColor: AppColors.background(context),
       body: CustomScrollView(
@@ -596,9 +620,15 @@ if (!isCancelled) ...[
         'paymentStatus=$paymentStatus',
       );
 
-      // ── 1. Fully paid → review actions only.
+      // ── 1. Fully paid → review actions, gated on stay completion.
       //       Never show cancel button or 24-hour warning.
       if (isPaid) {
+        // Stay is ended when checkOut has passed OR status is explicitly completed.
+        bool stayEnded = bookingStatus.toLowerCase() == 'completed';
+        if (!stayEnded && checkOut is Timestamp) {
+          stayEnded = DateTime.now().isAfter((checkOut as Timestamp).toDate());
+        }
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -615,7 +645,7 @@ if (!isCancelled) ...[
             ),
             if (hasReview)
               const _ReviewSubmittedBadge()
-            else
+            else if (stayEnded)
               _ReviewButton(
                 onTap: () async {
                   await Navigator.push<bool>(
@@ -628,6 +658,27 @@ if (!isCancelled) ...[
                     ),
                   );
                 },
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.schedule_rounded,
+                        size: 14, color: AppColors.textLight),
+                    SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'You can leave a review after your stay.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color:      AppColors.textMid,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
           ],
         );

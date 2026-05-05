@@ -367,7 +367,7 @@ Widget _searchBar() {
   Widget _propertyCardHorizontal(QueryDocumentSnapshot doc) {
     final d           = doc.data() as Map<String, dynamic>;
     final name        = (d['name']         ?? '') as String;
-    final location    = (d['location']     ?? '') as String;
+    final location    = (d['address'] as String? ?? d['city'] as String? ?? d['location'] as String? ?? '');
     final category    = (d['category']     ?? '') as String;
     final minPrice    = d['minPrice'];
 final pricingMode = (d['minPricingMode'] ?? 'monthly').toString();
@@ -492,7 +492,7 @@ final pricingMode = (d['minPricingMode'] ?? 'monthly').toString();
   Widget _propertyCardVertical(QueryDocumentSnapshot doc) {
     final d           = doc.data() as Map<String, dynamic>;
     final name        = (d['name']         ?? '') as String;
-    final location    = (d['location']     ?? '') as String;
+    final location    = (d['address'] as String? ?? d['city'] as String? ?? d['location'] as String? ?? '');
     final category    = (d['category']     ?? '') as String;
     final minPrice    = d['minPrice'];
 final pricingMode = (d['minPricingMode'] ?? 'monthly').toString();

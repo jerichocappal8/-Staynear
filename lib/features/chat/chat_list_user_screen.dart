@@ -97,11 +97,27 @@ class _ChatListUserScreenState extends State<ChatListUserScreen>
                     future: _chatService.getOtherParticipantInfo(hostId),
                     builder: (context, hostSnap) {
                       final hostInfo = hostSnap.data ?? {};
+                      // Fallback order:
+                      //   1. fetched user-doc name (most up-to-date)
+                      //   2. hostName stored on conversation doc (saved at creation)
+                      //   3. propertyName as last recognisable label
+                      //   4. 'Host'
+                      final fetched  = (hostInfo['name']  as String? ?? '').trim();
+                      final stored   = (data['hostName']  as String? ?? '').trim();
+                      final property = (data['propertyName'] as String? ?? '').trim();
+                      final resolvedName = fetched.isNotEmpty  ? fetched
+                          : stored.isNotEmpty   ? stored
+                          : property.isNotEmpty ? property
+                          : 'Host';
+                      // Same priority for avatar photo.
+                      final fetchedPhoto = (hostInfo['photo'] as String? ?? '');
+                      final storedPhoto  = (data['hostPhoto'] as String? ?? '');
+                      final resolvedPhoto = fetchedPhoto.isNotEmpty ? fetchedPhoto : storedPhoto;
                       return _ConversationTile(
                         conversationId:       conversationId,
                         data:                 data,
-                        otherName:            hostInfo['name']  ?? 'Host',
-                        otherPhoto:           hostInfo['photo'] ?? '',
+                        otherName:            resolvedName,
+                        otherPhoto:           resolvedPhoto,
                         otherParticipantId:   hostId,
                         chatService:          _chatService,
                       );
@@ -195,11 +211,26 @@ class _ChatListHostScreenState extends State<ChatListHostScreen>
                     future: _chatService.getOtherParticipantInfo(userId),
                     builder: (context, userSnap) {
                       final userInfo = userSnap.data ?? {};
+                      // Fallback order:
+                      //   1. fetched user-doc name
+                      //   2. userName stored on conversation doc
+                      //   3. propertyName
+                      //   4. 'Guest'
+                      final fetched  = (userInfo['name']  as String? ?? '').trim();
+                      final stored   = (data['userName']  as String? ?? '').trim();
+                      final property = (data['propertyName'] as String? ?? '').trim();
+                      final resolvedName = fetched.isNotEmpty  ? fetched
+                          : stored.isNotEmpty   ? stored
+                          : property.isNotEmpty ? property
+                          : 'Guest';
+                      final fetchedPhoto = (userInfo['photo'] as String? ?? '');
+                      final storedPhoto  = (data['userPhoto'] as String? ?? '');
+                      final resolvedPhoto = fetchedPhoto.isNotEmpty ? fetchedPhoto : storedPhoto;
                       return _ConversationTile(
                         conversationId:       conversationId,
                         data:                 data,
-                        otherName:            userInfo['name']  ?? 'Guest',
-                        otherPhoto:           userInfo['photo'] ?? '',
+                        otherName:            resolvedName,
+                        otherPhoto:           resolvedPhoto,
                         otherParticipantId:   userId,
                         chatService:          _chatService,
                       );

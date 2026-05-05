@@ -140,7 +140,9 @@ void initState() {
       final counts = <String, int>{};
 
       for (final doc in snap.docs) {
-        String city = (doc.data()['location'] as String?) ?? '';
+        // city field (current schema) takes priority over location (old schema).
+        final _d = doc.data();
+        String city = (_d['city'] as String? ?? _d['location'] as String? ?? '');
         city = city.trim().toLowerCase();
 
         if (city.contains('urdaneta'))       city = 'Urdaneta City';

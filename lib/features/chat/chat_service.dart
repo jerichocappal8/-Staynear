@@ -37,18 +37,40 @@ class ChatService {
       return existing.docs.first.id;
     }
 
+    // Fetch both participant profiles in parallel so we can denormalize display
+    // names and photos into the conversation doc. This avoids a Firestore read
+    // on every chat-list rebuild for new conversations.
+    final results = await Future.wait([
+      _firestore.collection('users').doc(userId).get(),
+      _firestore.collection('users').doc(hostId).get(),
+    ]);
+    final uData = results[0].data() ?? {};
+    final hData = results[1].data() ?? {};
+
+    String _joinName(Map d) =>
+        ('${d['firstName'] ?? ''} ${d['lastName'] ?? ''}').trim();
+
+    final userName  = _joinName(uData);
+    final hostName  = _joinName(hData);
+    final userPhoto = (uData['photo'] as String?) ?? '';
+    final hostPhoto = (hData['photo'] as String?) ?? '';
+
     // Create new conversation
     final conversationRef = _firestore.collection('conversations').doc();
     await conversationRef.set({
-      'propertyId': propertyId,
+      'propertyId':   propertyId,
       'propertyName': propertyName,
-      'hostId': hostId,
-      'userId': userId,
-      'participants': [userId, hostId],
-      'lastMessage': '',
-      'lastMessageType': 'text',
-      'lastTimestamp': FieldValue.serverTimestamp(),
-      'createdAt': FieldValue.serverTimestamp(),
+      'hostId':       hostId,
+      'userId':       userId,
+      'hostName':     hostName,
+      'userName':     userName,
+      'hostPhoto':    hostPhoto,
+      'userPhoto':    userPhoto,
+      'participants':     [userId, hostId],
+      'lastMessage':      '',
+      'lastMessageType':  'text',
+      'lastTimestamp':    FieldValue.serverTimestamp(),
+      'createdAt':        FieldValue.serverTimestamp(),
     });
 
     return conversationRef.id;

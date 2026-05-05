@@ -296,7 +296,35 @@ class _BookingInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final email = occupancyData['guestEmail'] as String? ?? "—";
+    final email       = occupancyData['guestEmail'] as String? ?? "—";
+    final pricingMode = (occupancyData['pricingMode'] as String?) ?? 'monthly';
+    final isDaily     = pricingMode == 'daily';
+
+    // Build a mode-aware stay duration label.
+    final String stayLabel;
+    if (isDaily) {
+      // stayDays is already the night count (checkOut - checkIn in days).
+      stayLabel = stayDays > 0
+          ? "$stayDays night${stayDays == 1 ? '' : 's'}"
+          : "—";
+    } else {
+      // Compute months using calendar arithmetic — avoids the days/30 rounding
+      // bug that makes "1 month in February" show as 0.
+      int months = 0;
+      final ci = occupancyData['checkIn'];
+      final co = occupancyData['checkOut'];
+      if (ci is Timestamp && co is Timestamp) {
+        final ciDate = ci.toDate();
+        final coDate = co.toDate();
+        months = (coDate.year - ciDate.year) * 12 + (coDate.month - ciDate.month);
+        if (months < 0) months = 0;
+      }
+      // Fallback: monthsStayed field if present on the occupancy doc.
+      if (months == 0) months = (occupancyData['monthsStayed'] as int?) ?? 0;
+      stayLabel = months > 0
+          ? "$months month${months == 1 ? '' : 's'}"
+          : "—";
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -331,7 +359,7 @@ class _BookingInfoCard extends StatelessWidget {
           _InfoRow(
             icon: Icons.date_range_rounded,
             label: "Stay Duration",
-            value: stayDays > 0 ? "$stayDays days" : "—",
+            value: stayLabel,
             isLast: true,
           ),
         ],
@@ -371,27 +399,42 @@ class _PaymentBreakdownCard extends StatelessWidget {
 
         final b = snap.data!.data() as Map<String, dynamic>;
 
-        final amountPaid      = ((b['amountPaid']       as num?) ?? 0).toDouble();
-        final totalRent       = ((b['stayTotal']         as num?) ?? 0).toDouble();
-        final remaining       = ((b['remainingBalance']  as num?) ?? 0).toDouble().abs();
-        final firstMonthRent  = b['priceMonthly']     ?? 0;
-        final securityDeposit = b['securityDeposit']  ?? 0;
-        final serviceFee      = b['serviceFee']       ?? 0;
-        final pricingMode     = b['pricingMode']      ?? 'daily';
+        final amountPaid      = ((b['amountPaid']      as num?) ?? 0).toDouble();
+        final totalRent       = ((b['stayTotal']        as num?) ?? 0).toDouble();
+        final remaining       = ((b['remainingBalance'] as num?) ?? 0).toDouble().abs();
+        final firstMonthRent  = b['priceMonthly']    ?? 0;
+        final securityDeposit = b['securityDeposit'] ?? 0;
+        final serviceFee      = b['serviceFee']      ?? 0;
+        final pricingMode     = (b['pricingMode'] as String?) ?? 'monthly';
+        final isDaily         = pricingMode == 'daily';
 
-        // feesAndDeposit = one-time charges paid at booking (never repeated).
-        // Grand Total Paid = totalRent + feesAndDeposit.
-        // Showing them separately explains why amountPaid > totalRent.
+        // Daily-only: nightly rate (0 for old bookings without the field).
+        final pricePerNight = ((b['pricePerNight'] as num?) ?? 0).toDouble();
+
+        // Daily-only: compute nights from Timestamps; fall back to monthsStayed
+        // (checkout_screen stores nights there for daily bookings).
+        int nightsCount = 0;
+        if (isDaily) {
+          final ci = b['checkIn'];
+          final co = b['checkOut'];
+          if (ci is Timestamp && co is Timestamp) {
+            nightsCount = co.toDate().difference(ci.toDate()).inDays;
+          }
+          if (nightsCount == 0) {
+            nightsCount = (b['monthsStayed'] as int?) ?? 0;
+          }
+        }
+
+        // Monthly-only: one-time charges separate from recurring rent.
         final feesAndDeposit =
             ((securityDeposit as num?) ?? 0).toDouble() +
             ((serviceFee      as num?) ?? 0).toDouble();
 
-        // Derive display paymentStatus from actual remaining balance so the
-        // badge is always in sync regardless of what the Firestore field says.
+        // Derive paymentStatus from live values so the badge is always correct.
         String paymentStatus = b['paymentStatus'] ?? 'unknown';
         if (remaining <= 0 && amountPaid > 0) {
           paymentStatus = 'paid';
-        } else if (pricingMode == 'daily' && amountPaid >= totalRent) {
+        } else if (isDaily && amountPaid >= totalRent) {
           paymentStatus = 'paid';
         }
 
@@ -415,7 +458,7 @@ class _PaymentBreakdownCard extends StatelessWidget {
           ),
           child: Column(
             children: [
-              // ── Status header ─────────────────────────────────────────────
+              // ── Status header (same for both modes) ───────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
                 child: Row(
@@ -455,59 +498,99 @@ class _PaymentBreakdownCard extends StatelessWidget {
               ),
               Divider(height: 1, color: AppColors.border.withOpacity(0.4)),
 
-              // ── Line items ────────────────────────────────────────────────
-              _InfoRow(
-                  icon: Icons.home_rounded,
-                  label: "First Month Rent",
-                  value: _fmtAmt(firstMonthRent)),
-              _InfoDivider(),
-              _InfoRow(
-                  icon: Icons.security_rounded,
-                  label: "Security Deposit",
-                  value: _fmtAmt(securityDeposit)),
-              _InfoDivider(),
-              _InfoRow(
-                  icon: Icons.build_rounded,
-                  label: "Service Fee",
-                  value: _fmtAmt(serviceFee)),
+              // ── DAILY line items ──────────────────────────────────────────
+              if (isDaily) ...[
+                _InfoRow(
+                    icon: Icons.hotel_rounded,
+                    label: "Price per Night",
+                    value: _fmtAmt(pricePerNight)),
+                _InfoDivider(),
+                _InfoRow(
+                    icon: Icons.date_range_rounded,
+                    label: "Number of Nights",
+                    value: nightsCount > 0 ? "$nightsCount nights" : "—"),
+                Divider(height: 1, color: AppColors.border.withOpacity(0.4)),
+                _InfoRow(
+                    icon: Icons.calculate_rounded,
+                    label: "Total Stay Rent",
+                    value: _fmtAmt(totalRent),
+                    highlight: true),
+                _InfoDivider(),
+                _InfoRow(
+                    icon: Icons.security_rounded,
+                    label: "Security Deposit",
+                    value: _fmtAmt(securityDeposit)),
+                _InfoDivider(),
+                _InfoRow(
+                    icon: Icons.build_rounded,
+                    label: "Service Fee",
+                    value: _fmtAmt(serviceFee)),
+                Divider(height: 1, color: AppColors.border.withOpacity(0.4)),
+                _InfoRow(
+                    icon: Icons.check_circle_rounded,
+                    label: "Total Paid",
+                    value: _fmtAmt(amountPaid),
+                    valueColor: const Color(0xFF22C55E),
+                    highlight: true,
+                    isLast: remaining <= 0),
+                if (remaining > 0) ...[
+                  _InfoDivider(),
+                  _InfoRow(
+                      icon: Icons.pending_rounded,
+                      label: "Remaining Balance",
+                      value: _fmtAmt(remaining),
+                      valueColor: AppColors.primaryOrange,
+                      isLast: true),
+                ],
+              ],
 
-              // ── Separator before totals ───────────────────────────────────
-              Divider(height: 1, color: AppColors.border.withOpacity(0.4)),
-
-              // ── Totals ────────────────────────────────────────────────────
-              // Total Rent = priceMonthly × months (deposit/fee NOT included).
-              _InfoRow(
-                  icon: Icons.calculate_rounded,
-                  label: "Total Rent",
-                  value: _fmtAmt(totalRent),
-                  highlight: true),
-              _InfoDivider(),
-              // Fees & Deposit = one-time charges paid at booking only.
-              // Explains why Grand Total Paid exceeds Total Rent.
-              _InfoRow(
-                  icon: Icons.receipt_rounded,
-                  label: "Fees & Deposit",
-                  value: _fmtAmt(feesAndDeposit)),
-
-              Divider(height: 1, color: AppColors.border.withOpacity(0.4)),
-
-              // ── Bottom summary ────────────────────────────────────────────
-              _InfoRow(
-                  icon: Icons.check_circle_rounded,
-                  label: "Grand Total Paid",
-                  value: _fmtAmt(amountPaid),
-                  valueColor: const Color(0xFF22C55E),
-                  highlight: true),
-              _InfoDivider(),
-              _InfoRow(
-                icon: Icons.pending_rounded,
-                label: "Remaining Rent Balance",
-                value: _fmtAmt(remaining),
-                valueColor: remaining == 0
-                    ? const Color(0xFF22C55E)
-                    : AppColors.primaryOrange,
-                isLast: true,
-              ),
+              // ── MONTHLY line items ────────────────────────────────────────
+              if (!isDaily) ...[
+                _InfoRow(
+                    icon: Icons.home_rounded,
+                    label: "First Month Rent",
+                    value: _fmtAmt(firstMonthRent)),
+                _InfoDivider(),
+                _InfoRow(
+                    icon: Icons.security_rounded,
+                    label: "Security Deposit",
+                    value: _fmtAmt(securityDeposit)),
+                _InfoDivider(),
+                _InfoRow(
+                    icon: Icons.build_rounded,
+                    label: "Service Fee",
+                    value: _fmtAmt(serviceFee)),
+                Divider(height: 1, color: AppColors.border.withOpacity(0.4)),
+                // Total Rent = priceMonthly × months (deposit/fee excluded).
+                _InfoRow(
+                    icon: Icons.calculate_rounded,
+                    label: "Total Rent",
+                    value: _fmtAmt(totalRent),
+                    highlight: true),
+                _InfoDivider(),
+                // Fees & Deposit are one-time charges — shown separately so
+                // the host can see why Grand Total Paid exceeds Total Rent.
+                _InfoRow(
+                    icon: Icons.receipt_rounded,
+                    label: "Fees & Deposit",
+                    value: _fmtAmt(feesAndDeposit)),
+                Divider(height: 1, color: AppColors.border.withOpacity(0.4)),
+                _InfoRow(
+                    icon: Icons.check_circle_rounded,
+                    label: "Grand Total Paid",
+                    value: _fmtAmt(amountPaid),
+                    valueColor: const Color(0xFF22C55E),
+                    highlight: true),
+                _InfoDivider(),
+                _InfoRow(
+                    icon: Icons.pending_rounded,
+                    label: "Remaining Rent Balance",
+                    value: _fmtAmt(remaining),
+                    valueColor: remaining == 0
+                        ? const Color(0xFF22C55E)
+                        : AppColors.primaryOrange,
+                    isLast: true),
+              ],
             ],
           ),
         );

@@ -154,6 +154,40 @@ class _PaymentScreenState extends State<PaymentScreen> {
       // writes to a trusted backend or Stripe webhook.
       final double amountToCharge = widget.totalPrice;
 
+      // ── Pre-flight: check room availability BEFORE charging the card ───────
+      // If availableUnits <= 0 or isAvailable == false the user is shown an
+      // error and we return WITHOUT calling Stripe — no charge is made.
+      // This prevents charging a guest for a room that has already been taken.
+      // Note: a narrow concurrent race remains (two users pass simultaneously);
+      // the rules-level floor (availableUnits >= 0) catches that at the DB layer.
+      final preflightApartmentId = data['apartmentId'] as String? ?? '';
+      final preflightRoomId      = data['roomId']      as String? ?? '';
+      if (preflightApartmentId.isNotEmpty && preflightRoomId.isNotEmpty) {
+        final preflightSnap = await FirebaseFirestore.instance
+            .collection('properties')
+            .doc(preflightApartmentId)
+            .collection('rooms')
+            .doc(preflightRoomId)
+            .get();
+
+        if (preflightSnap.exists) {
+          final rd    = preflightSnap.data()!;
+          final units = (rd['availableUnits'] as num? ?? 1).toInt();
+          final avail = rd['isAvailable']    as bool? ?? true;
+
+          if (units <= 0 || !avail) {
+            if (mounted) setState(() => _loading = false);
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content:         Text('Sorry, this room is no longer available.'),
+                backgroundColor: AppColors.danger,
+              ),
+            );
+            return;
+          }
+        }
+      }
+
       // ── Stripe — early return on cancellation, no Firestore writes ───────
       try {
         await _startStripePayment(amountToCharge);

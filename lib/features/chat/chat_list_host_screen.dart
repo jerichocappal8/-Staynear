@@ -162,17 +162,32 @@ return GestureDetector(
                 }
 
                 final userData =
-                    userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
-                final firstName = userData['firstName'] ?? '';
-final lastName = userData['lastName'] ?? '';
-final name = '$firstName $lastName'.trim();
-final photo = userData['photo'];
+                    (userSnapshot.data!.data() as Map<String, dynamic>?) ?? {};
+                final firstName = (userData['firstName'] as String? ?? '').trim();
+                final lastName  = (userData['lastName']  as String? ?? '').trim();
+                final fetched   = '$firstName $lastName'.trim();
+                final photo     = userData['photo'] as String? ?? '';
+
+                // Fallback order:
+                //   1. fetched user-doc name
+                //   2. userName stored on conversation doc
+                //   3. propertyName
+                //   4. 'Guest'
+                final stored   = (data['userName']    as String? ?? '').trim();
+                final property = (data['propertyName'] as String? ?? '').trim();
+                final name = fetched.isNotEmpty  ? fetched
+                    : stored.isNotEmpty   ? stored
+                    : property.isNotEmpty ? property
+                    : 'Guest';
+                final resolvedPhoto = photo.isNotEmpty
+                    ? photo
+                    : (data['userPhoto'] as String? ?? '');
 
                 return _ConversationTile(
                   conversationId: conversations[index].id,
                   data: data,
-                  name: name.isEmpty ? 'Guest' : name,
-                  photo: photo,
+                  name: name,
+                  photo: resolvedPhoto,
                   lastMessage: lastMessage,
                   timeLabel: _formatTime(lastTimestamp),
                   onTap: () {

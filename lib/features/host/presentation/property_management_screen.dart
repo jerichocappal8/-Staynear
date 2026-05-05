@@ -18,7 +18,8 @@ class PropertyManagementScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isActive = propertyData['status'] == 'active';
+    // isActive: current schema stores bool 'isActive'; old data used string 'status'.
+    final isActive = propertyData['isActive'] == true || propertyData['status'] == 'active';
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
@@ -184,10 +185,14 @@ class _PropertyThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final image = (data['images'] != null &&
-            (data['images'] as List).isNotEmpty)
-        ? data['images'][0] as String
-        : null;
+    // Image: coverImageUrl (current) → imageUrls[0] (current) → images[0] (old).
+    final String? image = (() {
+      final cover = data['coverImageUrl'] as String? ?? '';
+      if (cover.isNotEmpty) return cover;
+      final urls = data['imageUrls'] ?? data['images'];
+      if (urls != null && (urls as List).isNotEmpty) return urls.first as String;
+      return null;
+    })();
     if (image != null) {
       return Image.network(image,
           width: 64, height: 64, fit: BoxFit.cover,

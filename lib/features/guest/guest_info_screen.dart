@@ -148,6 +148,7 @@ class _GuestInfoScreenState extends State<GuestInfoScreen> {
       roomsCount:      1,
       guestsCount:     1,
       specialRequests: _requestsCtrl.text.trim(),
+      stayMonths:      _isDaily ? 0 : _stayMonths,
     );
 
     Navigator.pop(context, model);

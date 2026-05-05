@@ -139,10 +139,14 @@ class _PropertyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final image = (data['images'] != null &&
-            (data['images'] as List).isNotEmpty)
-        ? data['images'][0] as String
-        : null;
+    // Image: coverImageUrl (current) → imageUrls[0] (current) → images[0] (old).
+    final String? image = (() {
+      final cover = data['coverImageUrl'] as String? ?? '';
+      if (cover.isNotEmpty) return cover;
+      final urls = data['imageUrls'] ?? data['images'];
+      if (urls != null && (urls as List).isNotEmpty) return urls.first as String;
+      return null;
+    })();
     final isActive = (data['isActive'] ?? true) == true;
 
     return Container(
@@ -211,7 +215,7 @@ class _PropertyCard extends StatelessWidget {
                     const SizedBox(width: 3),
                     Expanded(
                       child: Text(
-                        data['location'] ?? "No location",
+                        (data['address'] as String? ?? data['city'] as String? ?? data['location'] as String? ?? 'No location'),
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textMid,
