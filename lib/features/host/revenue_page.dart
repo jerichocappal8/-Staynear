@@ -463,7 +463,7 @@ class _HeroRevenueCard extends StatelessWidget {
                     Icon(Icons.trending_up_rounded,
                         size: 13, color: Colors.white),
                     SizedBox(width: 5),
-                    Text('Total Revenue',
+                    Text('Total Collected',
                         style: TextStyle(
                             fontSize:   11,
                             fontWeight: FontWeight.w700,
@@ -495,7 +495,7 @@ class _HeroRevenueCard extends StatelessWidget {
 
           const SizedBox(height: 4),
           Text(
-            'All time successful payments',
+            'Includes rent, deposits & fees',
             style: TextStyle(
               fontSize: 12.5,
               color:    Colors.white.withOpacity(.78),

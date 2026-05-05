@@ -93,26 +93,7 @@ class _BackupCodesPageState extends State<BackupCodesPage>
     });
   }
 
-  void _downloadCodes() {
-    // UI-only placeholder — wire up file-save logic here
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.darkCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        content: const Row(
-          children: [
-            Icon(Icons.download_done_rounded, color: AppColors.primaryOrange, size: 18),
-            SizedBox(width: 10),
-            Text("Download feature coming soon",
-                style: TextStyle(color: Colors.white, fontSize: 13)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Build ─────────────────────────────────────
+// ── Build ─────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
@@ -443,49 +424,6 @@ class _BackupCodesPageState extends State<BackupCodesPage>
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // Download / Save
-        GestureDetector(
-          onTap: _downloadCodes,
-          child: Container(
-            width: double.infinity,
-            height: 56,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              color: AppColors.card(context),
-              border: Border.all(
-                color: dark ? AppColors.darkCardSoft : AppColors.border,
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(dark ? 0.2 : 0.05),
-                  blurRadius: 12, offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.download_rounded,
-                  color: AppColors.text(context), size: 20,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  "Download Codes",
-                  style: TextStyle(
-                    color: AppColors.text(context),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],

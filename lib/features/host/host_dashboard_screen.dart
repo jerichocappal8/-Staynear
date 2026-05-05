@@ -36,6 +36,11 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
   // ── original logic (unchanged) ─────────────────────────────────────────────
   String? get uid => FirebaseAuth.instance.currentUser?.uid;
 
+  // ── real stat state ────────────────────────────────────────────────────────
+  double? _revenueTotal;
+  double? _avgRating;
+  int     _reviewCount = 0;
+
   // ── staggered section animations ──────────────────────────────────────────
   late final List<AnimationController> _ctrl;
   late final List<Animation<double>>   _fade;
@@ -77,6 +82,8 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
       });
     }
 
+    _loadStats();
+
     // FIX: One AnimationController per stat card for safe press animation.
     // This avoids calling setState() inside gesture callbacks while the
     // framework is building / laying out the widget tree (e.g. on long-press).
@@ -101,6 +108,47 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
     for (final c in _ctrl) c.dispose();
     for (final c in _cardScaleCtrl) c.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadStats() async {
+    final hostId = uid;
+    if (hostId == null) return;
+    final fs = FirebaseFirestore.instance;
+
+    final paySnap = await fs
+        .collection('payments')
+        .where('hostId', isEqualTo: hostId)
+        .where('status', isEqualTo: 'success')
+        .get();
+    double revenue = 0;
+    for (final doc in paySnap.docs) {
+      revenue += ((doc['amount'] as num?) ?? 0).toDouble();
+    }
+
+    final reviewSnap = await fs
+        .collection('reviews')
+        .where('hostId', isEqualTo: hostId)
+        .get();
+    double ratingSum = 0;
+    for (final doc in reviewSnap.docs) {
+      ratingSum += ((doc['rating'] as num?) ?? 0).toDouble();
+    }
+    final count = reviewSnap.docs.length;
+
+    if (!mounted) return;
+    setState(() {
+      _revenueTotal = revenue;
+      _avgRating    = count > 0 ? ratingSum / count : 0.0;
+      _reviewCount  = count;
+    });
+  }
+
+  static String _fmtRevenue(double? v) {
+    if (v == null) return '₱...';
+    if (v == 0)    return '₱0';
+    if (v >= 1000000) return '₱${(v / 1000000).toStringAsFixed(1)}M';
+    if (v >= 1000)    return '₱${(v / 1000).toStringAsFixed(1)}k';
+    return '₱${v.toStringAsFixed(0)}';
   }
 
   // ── section wrapper ────────────────────────────────────────────────────────
@@ -308,27 +356,30 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
         index:  2,
         icon:   Icons.payments_rounded,
         color:  const Color(0xFF10B981),
-        number: '₱',
-        label:  'Revenue',
+        number: _fmtRevenue(_revenueTotal),
+        label:  'Total Collected',
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => RevenuePage()),
         ),
       ),
-      // ── CHANGED: Inquiries → Reviews ──────────────────────────────────────
-_StatCardData(
-  index:  3,
-  icon:   Icons.star_rounded,
-  color:  const Color(0xFFF5A623),
-  number: '★',
-  label:  'Reviews',
-  onTap: () => Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const HostReviewsScreen(),
-    ),
-  ),
-),
+      _StatCardData(
+        index:  3,
+        icon:   Icons.star_rounded,
+        color:  const Color(0xFFF5A623),
+        number: _avgRating == null
+            ? '...'
+            : _avgRating!.toStringAsFixed(1),
+        label:  _reviewCount > 0
+            ? '$_reviewCount Review${_reviewCount == 1 ? '' : 's'}'
+            : 'Reviews',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const HostReviewsScreen(),
+          ),
+        ),
+      ),
     ];
 
     return GridView.count(
@@ -672,18 +723,30 @@ class _StatCard extends StatelessWidget {
 
           const Spacer(),
 
-          // Reviews card shows a star rating display instead of a plain number
+          // Reviews card shows a star rating display + numeric average
           if (isReviews) ...[
-            Row(
-              children: List.generate(5, (i) => Padding(
-                padding: const EdgeInsets.only(right: 2),
-                child: Icon(
-                  i < 4 ? Icons.star_rounded : Icons.star_half_rounded,
-                  size:  16,
-                  color: AppColors.primaryOrange,
-                ),
-              )),
-            ),
+            Builder(builder: (context) {
+              final rating = double.tryParse(data.number) ?? 0.0;
+              final hasData = data.number != '...';
+              return Row(
+                children: List.generate(5, (i) {
+                  final filled = i < rating.floor();
+                  final half   = !filled && i < rating;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 2),
+                    child: Icon(
+                      filled ? Icons.star_rounded
+                           : half ? Icons.star_half_rounded
+                           : Icons.star_outline_rounded,
+                      size:  16,
+                      color: hasData && rating > 0
+                          ? AppColors.primaryOrange
+                          : AppColors.textLight,
+                    ),
+                  );
+                }),
+              );
+            }),
             const SizedBox(height: 4),
           ] else ...[
             Text(

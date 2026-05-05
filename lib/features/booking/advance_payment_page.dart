@@ -734,49 +734,61 @@ class _OptionTileState extends State<_OptionTile>
               const SizedBox(width: 14),
 
               // ── Label ─────────────────────────────────────────────
-              Flexible(
-  child: Column(
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                      Row(
-  children: [
-    Text(
-      opt.label,
-      overflow: TextOverflow.ellipsis,
-      maxLines: 1,
-      style: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w700,
-        color: isSelected
-            ? AppColors.primaryOrange
-            : AppColors.text(context), // was: Colors.white
-      ),
-    ),
-    if (opt.isFull) ...[
-      const SizedBox(width: 8),
-      Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 7, vertical: 2),
-        decoration: BoxDecoration(
-          color: AppColors.primaryOrange.withOpacity(0.18),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Text(
-          'CLEARS DEBT',
-          style: TextStyle(
-            fontSize: 9,
-            fontWeight: FontWeight.w800,
-            color: AppColors.primaryOrange,
-            letterSpacing: 0.4,
-          ),
-        ),
-      ),
-    ],
-  ],
-),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          opt.label,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: isSelected
+                                ? AppColors.primaryOrange
+                                : AppColors.text(context), // was: Colors.white
+                          ),
+                        ),
+                        if (opt.isFull)
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryOrange.withOpacity(
+                                  0.18,
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text(
+                                'CLEARS DEBT',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primaryOrange,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       opt.sublabel,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                       style: TextStyle(
                         fontSize: 12,
                         color: isSelected
@@ -787,10 +799,13 @@ class _OptionTileState extends State<_OptionTile>
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
 
               // ── Amount ────────────────────────────────────────────
               Text(
                 widget.fmtPrice(opt.amount),
+                maxLines: 1,
+                textAlign: TextAlign.right,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,

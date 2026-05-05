@@ -161,6 +161,12 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
           }
         }
 
+        // Payment guard — server-side counterpart to the UI canCancel check.
+        // Blocks cancellation even if the client bypasses the button visibility.
+        final paidSoFar =
+            ((bookingData['amountPaid'] as num?) ?? 0).toDouble();
+        if (paidSoFar > 0) throw Exception('payment_already_made');
+
         final apartmentId = bookingData['apartmentId'] as String?;
         final roomId      = bookingData['roomId']      as String?;
 
@@ -246,6 +252,8 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
         msg = 'Cancellation window has expired (24 hours after booking).';
       } else if (raw.contains('booking_not_found')) {
         msg = 'Booking not found. Please refresh and try again.';
+      } else if (raw.contains('payment_already_made')) {
+        msg = 'Cancellation is not available after a payment has been made.';
       } else {
         msg = 'Cancellation failed. Please try again.';
       }
@@ -605,30 +613,29 @@ if (!isCancelled) ...[
   Builder(
     builder: (context) {
       final createdAt = d['createdAt'] as Timestamp?;
-      final isPaid    = paymentStatus.toLowerCase() == 'paid';
+      final isPaid    = paymentStatus.toLowerCase() == 'paid' ||
+          remainingBalance <= 0;
+      final canReview = bookingStatus.toLowerCase() != 'cancelled' &&
+          (paymentStatus.toLowerCase() == 'paid' || remainingBalance <= 0) &&
+          !hasReview;
       bool canCancel  = false;
 
       if (createdAt != null) {
         canCancel = DateTime.now()
             .difference(createdAt.toDate())
-            .inHours <= 24;
+            .inHours <= 24
+            && amountPaidVal <= 0;
       }
 
       debugPrint(
-        '[BookingDetail] isPaid=$isPaid  canCancel=$canCancel  '
+        '[BookingDetail] isPaid=$isPaid  canReview=$canReview  canCancel=$canCancel  '
         'hasReview=$hasReview  bookingStatus=$bookingStatus  '
         'paymentStatus=$paymentStatus',
       );
 
-      // ── 1. Fully paid → review actions, gated on stay completion.
+      // ── 1. Fully paid → review actions.
       //       Never show cancel button or 24-hour warning.
       if (isPaid) {
-        // Stay is ended when checkOut has passed OR status is explicitly completed.
-        bool stayEnded = bookingStatus.toLowerCase() == 'completed';
-        if (!stayEnded && checkOut is Timestamp) {
-          stayEnded = DateTime.now().isAfter((checkOut as Timestamp).toDate());
-        }
-
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -645,7 +652,7 @@ if (!isCancelled) ...[
             ),
             if (hasReview)
               const _ReviewSubmittedBadge()
-            else if (stayEnded)
+            else if (canReview)
               _ReviewButton(
                 onTap: () async {
                   await Navigator.push<bool>(
@@ -658,27 +665,6 @@ if (!isCancelled) ...[
                     ),
                   );
                 },
-              )
-            else
-              const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Row(
-                  children: [
-                    Icon(Icons.schedule_rounded,
-                        size: 14, color: AppColors.textLight),
-                    SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        'You can leave a review after your stay.',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color:      AppColors.textMid,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
           ],
         );
@@ -1152,7 +1138,7 @@ class _ReviewButton extends StatelessWidget {
         ),
         child: const Center(
           child: Text(
-            'Add Review',
+            'Leave a Review',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
