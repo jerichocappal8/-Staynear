@@ -323,6 +323,7 @@ final booking = BookingModel(
 
   pricingMode: widget.room.pricingMode,
   priceMonthly: double.tryParse(widget.room.priceMonthly.trim()) ?? 0,
+  pricePerNight: double.tryParse(widget.room.priceDaily.trim()) ?? 0,
 
   monthsStayed: _stayDuration,
   stayTotal: _stayTotal,

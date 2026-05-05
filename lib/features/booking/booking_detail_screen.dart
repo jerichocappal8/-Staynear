@@ -295,40 +295,35 @@ Widget build(BuildContext context) {
     final guestEmail    = (d['guestEmail']      ?? '—') as String;
     final checkIn       = d['checkIn'];
     final checkOut      = d['checkOut'];
-    final amount        = d['amountPaid'];
-    final bookingStatus = (d['bookingStatus'] ?? 'pending').toString();
-    String paymentStatus = (d['paymentStatus'] ?? 'unpaid').toString();
-    final nights        = _nights(checkIn, checkOut);
-    final isCancelled   = bookingStatus.toLowerCase() == 'cancelled';
-    final hasReview = (d['hasReview'] ?? false) as bool;
-    final monthlyRent = d['priceMonthly'] ?? 0;
-    final securityDeposit = d['securityDeposit'] ?? 0;
-    final serviceFee = d['serviceFee'] ?? 0;
-    final totalDueToday = d['totalDueToday'] ?? 0;
-    final stayTotal = d['stayTotal'] ?? 0;
-    final remainingBalance = d['remainingBalance'] ?? 0;
-    final pricingMode = d['pricingMode'] ?? 'daily';
+    final amount           = d['amountPaid']; // kept dynamic for _fmtPrice compat
+    final amountPaidVal    = ((d['amountPaid']       as num?) ?? 0).toDouble();
+    final bookingStatus    = (d['bookingStatus'] ?? 'pending').toString();
+    String paymentStatus   = (d['paymentStatus'] ?? 'unpaid').toString();
+    final nights           = _nights(checkIn, checkOut);
+    final isCancelled      = bookingStatus.toLowerCase() == 'cancelled';
+    final hasReview        = (d['hasReview'] ?? false) as bool;
+    final monthlyRent      = d['priceMonthly'] ?? 0;
+    final securityDeposit  = d['securityDeposit'] ?? 0;
+    final serviceFee       = d['serviceFee'] ?? 0;
+    final totalDueToday    = d['totalDueToday'] ?? 0;
+    final stayTotal        = ((d['stayTotal']        as num?) ?? 0).toDouble();
+    final remainingBalance = ((d['remainingBalance'] as num?) ?? 0).toDouble();
+    final pricingMode      = d['pricingMode'] ?? 'daily';
 
-// Fix payment status logic
-if (pricingMode == "monthly") {
-  if (remainingBalance <= 0) {
-    paymentStatus = "paid";
-  } else if (remainingBalance < stayTotal) {
-    paymentStatus = "partial";
-  } else {
-    paymentStatus = "unpaid";
-  }
-}
-
-// Daily bookings are always fully paid upfront
-if (pricingMode == "daily") {
-  if (amount != null && amount >= stayTotal) {
-    paymentStatus = "paid";
-  } else if (amount != null && amount > 0) {
-    paymentStatus = "partial";
-  } else {
-    paymentStatus = "unpaid";
-  }
+// Unified payment status — same rule for monthly and daily:
+//   amountPaid == 0                        → unpaid
+//   amountPaid > 0  &&  remainingBalance > 0 → partial
+//   remainingBalance <= 0  (and paid > 0)   → paid
+//
+// Monthly example (₱1,234 × 5 months):
+//   initial payment = ₱1,334  remainingBalance = ₱4,936  → partial
+//   full advance    = ₱4,936  remainingBalance = ₱0      → paid
+if (amountPaidVal <= 0) {
+  paymentStatus = 'unpaid';
+} else if (remainingBalance > 0) {
+  paymentStatus = 'partial';
+} else {
+  paymentStatus = 'paid';
 }
 
     return Scaffold(
@@ -473,12 +468,18 @@ if (pricingMode == "monthly") ...[
   const SizedBox(height: 12),
   const Divider(height: 1),
 
-  _PaymentRow("Paid First Month", _fmtPrice(totalDueToday), highlight: true),
+  // Show actual amount paid, not the static "due today" figure.
+  // Before payment: show what is due. After payment: show what was paid.
+  if (amountPaidVal > 0)
+    _PaymentRow("Amount Paid", _fmtPrice(amountPaidVal), highlight: true)
+  else
+    _PaymentRow("Due Today", _fmtPrice(totalDueToday)),
 
   const SizedBox(height: 10),
 
   _PaymentRow("Remaining Balance", _fmtPrice(remainingBalance)),
-  _PaymentRow("Total Stay Cost", _fmtPrice(stayTotal)),
+  // "Total Rent Cost" = priceMonthly × months (deposit/fee excluded — paid once only).
+  _PaymentRow("Total Rent Cost", _fmtPrice(stayTotal)),
 ],
 
 
@@ -510,7 +511,7 @@ if (pricingMode == "daily") ...[
   ],
 ),
 
-if (pricingMode == "monthly" && remainingBalance > 0) ...[
+if (pricingMode == "monthly" && remainingBalance > 0 && !isCancelled) ...[
   const SizedBox(height: 16),
 
   SizedBox(
@@ -580,14 +581,61 @@ if (!isCancelled) ...[
   Builder(
     builder: (context) {
       final createdAt = d['createdAt'] as Timestamp?;
-      bool canCancel = false;
+      final isPaid    = paymentStatus.toLowerCase() == 'paid';
+      bool canCancel  = false;
 
       if (createdAt != null) {
-        final bookingTime = createdAt.toDate();
-        canCancel = DateTime.now().difference(bookingTime).inHours <= 24;
+        canCancel = DateTime.now()
+            .difference(createdAt.toDate())
+            .inHours <= 24;
       }
 
-      // PRIORITY: If still within 24h → show cancel button
+      debugPrint(
+        '[BookingDetail] isPaid=$isPaid  canCancel=$canCancel  '
+        'hasReview=$hasReview  bookingStatus=$bookingStatus  '
+        'paymentStatus=$paymentStatus',
+      );
+
+      // ── 1. Fully paid → review actions only.
+      //       Never show cancel button or 24-hour warning.
+      if (isPaid) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Thank you for completing your payment.',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: AppColors.textMid,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            if (hasReview)
+              const _ReviewSubmittedBadge()
+            else
+              _ReviewButton(
+                onTap: () async {
+                  await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ReviewPage(
+                        bookingId: widget.bookingId,
+                        data: d,
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
+        );
+      }
+
+      // ── 2. Partially paid + within 24-hour window → cancel button.
+      //       Partially paid + window expired → nothing here; the payment
+      //       card above already shows "Pay Remaining Balance".
       if (canCancel) {
         return _CancelButton(
           cancelling: _cancelling,
@@ -595,65 +643,42 @@ if (!isCancelled) ...[
         );
       }
 
-      // After 24h → show review if paid
-      if (paymentStatus.toLowerCase() == 'paid') {
-        if (hasReview) {
-          return const _ReviewSubmittedBadge();
-        } else {
-          return _ReviewButton(
-            onTap: () async {
-              final submitted = await Navigator.push<bool>(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ReviewPage(
-                    bookingId: widget.bookingId,
-                    data: d,
-                  ),
-                ),
-              );
-            },
-          );
-        }
-      }
+      // ── 3. Partial payment, window expired → suppress warning.
+      //       The payment card handles the "pay remaining" action.
+      if (paymentStatus == 'partial') return const SizedBox.shrink();
 
-      return const SizedBox();
-    },
-  ),
-
-  const SizedBox(height: 12),
-
-  Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: AppColors.danger.withOpacity(0.08),
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(
-        color: AppColors.danger.withOpacity(0.35),
-        width: 1,
-      ),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(
-          Icons.warning_amber_rounded,
-          color: AppColors.danger,
-          size: 18,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            "Bookings can only be cancelled within 24 hours after booking.",
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: AppColors.danger,
-              height: 1.4,
-            ),
+      // ── 4. Unpaid + window expired → warning only, no cancel button.
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.danger.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: AppColors.danger.withOpacity(0.35),
+            width: 1,
           ),
         ),
-      ],
-    ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.warning_amber_rounded,
+                color: AppColors.danger, size: 18),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Bookings can only be cancelled within 24 hours after booking.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.danger,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
   ),
 ],
                 ],

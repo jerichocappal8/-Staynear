@@ -440,11 +440,12 @@ Future<void> _updateApartment() async {
     try {
       // ── Step 1: Upload new images ─────────────────────────────────────
       final List<String> newlyUploadedUrls = [];
+      final uid = FirebaseAuth.instance.currentUser!.uid;
       for (final img in _newImageFiles) {
         final ref = FirebaseStorage.instance
             .ref()
             .child('apartments')
-            .child('${widget.docId}_${DateTime.now().millisecondsSinceEpoch}.jpg');
+            .child('${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
         final task = await ref.putFile(img);
         newlyUploadedUrls.add(await task.ref.getDownloadURL());
       }

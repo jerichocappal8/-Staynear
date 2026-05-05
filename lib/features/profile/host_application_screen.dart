@@ -11,25 +11,6 @@ import 'package:staynear/core/auth_helper.dart';
 import 'package:staynear/core/app_cities.dart';
 
 // ── PH Address data ───────────────────────────────────────────────────────────
-const _phRegions = [
-  'NCR – Metro Manila',
-  'Region I – Ilocos Region',
-  'Region II – Cagayan Valley',
-  'Region III – Central Luzon',
-  'Region IV-A – CALABARZON',
-  'Region IV-B – MIMAROPA',
-  'Region V – Bicol Region',
-  'Region VI – Western Visayas',
-  'Region VII – Central Visayas',
-  'Region VIII – Eastern Visayas',
-  'Region IX – Zamboanga Peninsula',
-  'Region X – Northern Mindanao',
-  'Region XI – Davao Region',
-  'Region XII – SOCCSKSARGEN',
-  'Region XIII – Caraga',
-  'BARMM',
-  'CAR – Cordillera Administrative Region',
-];
 const _phIdTypes = [
   'Philippine System ID (PhilSys)',
   'Passport',
@@ -69,7 +50,8 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
     return parts.join(' ');
   }
   // ── Step 2 – Address ──────────────────────────────────────────────────────
-  String? _region;
+  static const _fixedRegion   = 'Region I – Ilocos Region';
+  static const _fixedProvince = 'Pangasinan';
   String? _hostSelectedCity;
   final provinceCtrl  = TextEditingController();
   final cityCtrl      = TextEditingController();
@@ -96,6 +78,7 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
   void initState() {
     super.initState();
     _heroAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+    provinceCtrl.text = _fixedProvince;
     _checkProfilePhoto();
     for (final c in [lastNameCtrl, firstNameCtrl, middleNameCtrl]) {
       c.addListener(() => setState(() {}));
@@ -145,8 +128,6 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
   }
   bool _validateStep2() {
     final errs = <String, String?>{};
-    if (_region == null)                  errs['region']   = 'Select your region';
-    if (provinceCtrl.text.trim().isEmpty) errs['province'] = 'Province is required';
     if (cityCtrl.text.trim().isEmpty)     errs['city']     = 'City / Municipality is required';
     if (barangayCtrl.text.trim().isEmpty) errs['barangay'] = 'Barangay is required';
     if (streetCtrl.text.trim().isEmpty)   errs['street']   = 'Street / House No. is required';
@@ -211,14 +192,14 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
           'street': streetCtrl.text.trim(),
           'barangay': barangayCtrl.text.trim(),
           'city': cityCtrl.text.trim(),
-          'province': provinceCtrl.text.trim(),
-          'region': _region,
+          'province': _fixedProvince,
+          'region': _fixedRegion,
           'zipCode': zipCtrl.text.trim(),
         },
         // Documents
         'idType': _idType,
         'governmentIdUrl': govUrl,
-        'secondaryIdUrl': secUrl,
+        if (secUrl != null) 'secondaryIdUrl': secUrl,
         // Status
         'status': 'pending',
         'submittedAt': FieldValue.serverTimestamp(),
@@ -230,6 +211,11 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
       Navigator.pop(context);
       _showSnack("Application submitted! We'll review within 24 hours ✓");
     } catch (e) {
+      if (e is FirebaseException) {
+        debugPrint('Host request submit failed [${e.code}]: ${e.message}');
+      } else {
+        debugPrint('Host request submit failed: $e');
+      }
       if (!mounted) return;
       setState(() => loading = false);
       _showSnack(_hostApplicationErrorMessage(e), isError: true);
@@ -597,20 +583,12 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _sectionLabel(Icons.map_outlined, 'Region & Province'),
         const SizedBox(height: 4),
-        _hint('Select your region first, then fill in the remaining fields.'),
+        _hint('StayNear currently supports Region I – Ilocos Region / Pangasinan only.'),
         const SizedBox(height: 12),
         _FormCard(children: [
-          _DropdownField<String>(
-            value: _region, label: 'Region', icon: Icons.public_outlined,
-            error: _step2Errors['region'], items: _phRegions,
-            onChanged: (v) => setState(() { _region = v; _step2Errors.remove('region'); }),
-          ),
+          _lockedField('Region', _fixedRegion, Icons.public_outlined),
           _divider(),
-          _FormField(
-            controller: provinceCtrl, label: 'Province',
-            icon: Icons.location_city_outlined, error: _step2Errors['province'],
-            onChanged: (_) => setState(() => _step2Errors.remove('province')),
-          ),
+          _lockedField('Province', _fixedProvince, Icons.location_city_outlined),
           _divider(),
           // City dropdown — uses AppCities.list for Pangasinan municipalities
           _DropdownField<String>(
@@ -650,12 +628,12 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
             error: null, onChanged: (_) {},
           ),
         ]),
-        if (_region != null && cityCtrl.text.isNotEmpty && streetCtrl.text.isNotEmpty) ...[
+        if (cityCtrl.text.isNotEmpty && streetCtrl.text.isNotEmpty) ...[
           const SizedBox(height: 16),
           _AddressPreview(
             street: streetCtrl.text.trim(), barangay: barangayCtrl.text.trim(),
-            city: cityCtrl.text.trim(), province: provinceCtrl.text.trim(),
-            region: _region!, zip: zipCtrl.text.trim(),
+            city: cityCtrl.text.trim(), province: _fixedProvince,
+            region: _fixedRegion, zip: zipCtrl.text.trim(),
           ),
         ],
         const SizedBox(height: 80),
@@ -808,6 +786,23 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
     );
   }
   // ── Shared helpers ────────────────────────────────────────────────────────
+  Widget _lockedField(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(children: [
+        Icon(icon, size: 19, color: AppColors.textLight),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textLight)),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(
+            fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textMid)),
+        ])),
+        const Icon(Icons.lock_outline, size: 16, color: AppColors.textLight),
+      ]),
+    );
+  }
+
   Widget _sectionLabel(IconData icon, String label) => Row(children: [
     Icon(icon, size: 15, color: AppColors.primaryOrange), const SizedBox(width: 6),
     Text(label.toUpperCase(), style: const TextStyle(
@@ -1091,7 +1086,12 @@ class _DocUploadTile extends StatelessWidget {
                     const SizedBox(width: 14),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
-                        Text(label, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: AppColors.text(context))),
+                        Flexible(
+                          child: Text(label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: AppColors.text(context))),
+                        ),
                         if (required) ...[
                           const SizedBox(width: 6),
                           Container(
@@ -1102,7 +1102,10 @@ class _DocUploadTile extends StatelessWidget {
                         ],
                       ]),
                       const SizedBox(height: 3),
-                      Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textMid)),
+                      Text(subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, color: AppColors.textMid)),
                     ])),
                     Icon(Icons.upload_rounded, color: error != null ? AppColors.danger : AppColors.primaryOrange, size: 22),
                   ]),

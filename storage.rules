@@ -1,0 +1,77 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isImageOrPdf() {
+      return request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/pdf';
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    // Max 10 MB for property/chat images, 5 MB for profile photos / ID uploads
+    function underMegabytes(mb) {
+      return request.resource.size <= mb * 1024 * 1024;
+    }
+
+    // ── Profile photos ────────────────────────────────────────────────────────
+    // Code uploads to: profile_photos/{uid}.jpg
+    match /profile_photos/{filename} {
+      allow read: if signedIn();
+      allow write: if signedIn()
+                   && filename == request.auth.uid + '.jpg'
+                   && isImage()
+                   && underMegabytes(5);
+    }
+
+    // ── Apartment listing images ──────────────────────────────────────────────
+    // Code uploads to: apartments/{uid}_{timestamp}.jpg
+    // Filename must start with the uploader's UID to prevent overwriting others.
+    match /apartments/{filename} {
+      allow read: if true;
+      allow write: if signedIn()
+                   && filename.matches(request.auth.uid + '_[0-9]+\\.jpg')
+                   && isImage()
+                   && underMegabytes(10);
+    }
+
+    // ── Property sub-folder images (future use) ───────────────────────────────
+    // Path: properties/{propertyId}/{filename}
+    match /properties/{propertyId}/{filename} {
+      allow read: if true;
+      allow write: if signedIn()
+                   && isImage()
+                   && underMegabytes(10);
+    }
+
+    // ── Chat / conversation images ────────────────────────────────────────────
+    // Path: conversations/{conversationId}/{filename}
+    match /conversations/{conversationId}/{filename} {
+      allow read: if signedIn();
+      allow write: if signedIn()
+                   && isImage()
+                   && underMegabytes(10);
+    }
+
+    // ── Host ID uploads ───────────────────────────────────────────────────────
+    // Code uploads to: host_verification/{uid}/government_id.jpg|secondary_card.jpg
+    match /host_verification/{userId}/{filename} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId)
+                   && isImageOrPdf()
+                   && underMegabytes(5);
+    }
+  }
+}

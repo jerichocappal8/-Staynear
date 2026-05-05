@@ -3,7 +3,7 @@
 //
 //  Firestore structure:
 //  ┌──────────────────────────────────────────────────────────────────────┐
-//  │  reviews/{reviewId}                                                  │
+//  │  reviews/{bookingId}_review                                          │
 //  │  ├── bookingId        : String   (unique — one review per booking)   │
 //  │  ├── apartmentId      : String                                       │
 //  │  ├── apartmentName    : String                                       │
@@ -50,16 +50,20 @@ class ReviewService {
     required DateTime checkOut,
     required double amountPaid,
   }) async {
-    // Guard: one review per booking
-    final existing = await hasReview(bookingId);
-    if (existing) {
+    // Guard: one review per booking — deterministic doc ID makes this an O(1)
+    // existence check instead of a collection query, and eliminates the race
+    // window that existed between the old hasReview() query and the batch write.
+    final reviewDocId = '${bookingId}_review';
+    final reviewRef   = _db.collection('reviews').doc(reviewDocId);
+
+    final existing = await reviewRef.get();
+    if (existing.exists) {
       throw Exception('A review for this booking already exists.');
     }
 
     final batch = _db.batch();
 
     // 1. Create the review document
-    final reviewRef = _db.collection('reviews').doc();
     batch.set(reviewRef, {
       'bookingId': bookingId,
       'apartmentId': apartmentId,
@@ -91,10 +95,9 @@ await updateApartmentRating(apartmentId);
   static Future<bool> hasReview(String bookingId) async {
     final snap = await _db
         .collection('reviews')
-        .where('bookingId', isEqualTo: bookingId)
-        .limit(1)
+        .doc('${bookingId}_review')
         .get();
-    return snap.docs.isNotEmpty;
+    return snap.exists;
   }
 
   // ─────────────────────────────────────────────────────────────────────────

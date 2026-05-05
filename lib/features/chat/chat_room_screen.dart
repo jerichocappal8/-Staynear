@@ -395,16 +395,6 @@ Future<void> _pickAndSendImage() async {
           ),
         ),
       ]),
-      actions: [
-        Container(
-          margin: const EdgeInsets.only(right: 8),
-          child: _IconActionBtn(
-            icon:  Icons.phone_rounded,
-            color: AppColors.primaryOrange,
-            onTap: () {},
-          ),
-        ),
-      ],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
         child: Container(

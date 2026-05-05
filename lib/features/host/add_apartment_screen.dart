@@ -368,9 +368,14 @@ batch.set(roomRef, {
       if (!mounted) return;
       Navigator.pop(context);
     } catch (e) {
-      _showSnack('Failed to publish listing. Please try again.', isError: true);
+      if (e is FirebaseException) {
+        debugPrint('[PUBLISH LISTING] Firebase error [${e.code}]: ${e.message}');
+      } else {
+        debugPrint('[PUBLISH LISTING] Error: $e');
+      }
+      if (mounted) _showSnack('Failed to publish listing. Please try again.', isError: true);
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 

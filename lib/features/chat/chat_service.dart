@@ -131,7 +131,7 @@ Future<Map<String, dynamic>> _currentUserMeta() async {
   }) async {
     final meta = await _currentUserMeta();
     final fileName = '${_uuid.v4()}.jpg';
-    final ref = _storage.ref('chat_images/$conversationId/$fileName');
+    final ref = _storage.ref('conversations/$conversationId/$fileName');
     await ref.putFile(imageFile);
     final imageUrl = await ref.getDownloadURL();
 

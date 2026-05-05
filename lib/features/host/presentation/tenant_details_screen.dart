@@ -347,6 +347,13 @@ class _PaymentBreakdownCard extends StatelessWidget {
   final String bookingId;
   const _PaymentBreakdownCard({required this.bookingId});
 
+  // Formats a raw Firestore number (int or double) as ₱1,234
+  static String _fmtAmt(dynamic v) {
+    if (v == null) return '₱0';
+    final n = (v as num).toDouble().truncate();
+    return '₱${n.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
@@ -364,21 +371,29 @@ class _PaymentBreakdownCard extends StatelessWidget {
 
         final b = snap.data!.data() as Map<String, dynamic>;
 
-final amountPaid = (b['amountPaid'] ?? 0).toDouble();
-final totalRent = (b['stayTotal'] ?? 0).toDouble();
-final pricingMode = b['pricingMode'] ?? 'daily';
+        final amountPaid      = ((b['amountPaid']       as num?) ?? 0).toDouble();
+        final totalRent       = ((b['stayTotal']         as num?) ?? 0).toDouble();
+        final remaining       = ((b['remainingBalance']  as num?) ?? 0).toDouble().abs();
+        final firstMonthRent  = b['priceMonthly']     ?? 0;
+        final securityDeposit = b['securityDeposit']  ?? 0;
+        final serviceFee      = b['serviceFee']       ?? 0;
+        final pricingMode     = b['pricingMode']      ?? 'daily';
 
-final remaining = (b['remainingBalance'] ?? 0).abs();
-final firstMonthRent = b['priceMonthly'] ?? 0;
-final securityDeposit = b['securityDeposit'] ?? 0;
-final serviceFee = b['serviceFee'] ?? 0;
+        // feesAndDeposit = one-time charges paid at booking (never repeated).
+        // Grand Total Paid = totalRent + feesAndDeposit.
+        // Showing them separately explains why amountPaid > totalRent.
+        final feesAndDeposit =
+            ((securityDeposit as num?) ?? 0).toDouble() +
+            ((serviceFee      as num?) ?? 0).toDouble();
 
-String paymentStatus = b['paymentStatus'] ?? "unknown";
-
-// Fix: if daily booking is fully paid → mark as paid
-if (pricingMode == 'daily' && amountPaid >= totalRent) {
-  paymentStatus = 'paid';
-}
+        // Derive display paymentStatus from actual remaining balance so the
+        // badge is always in sync regardless of what the Firestore field says.
+        String paymentStatus = b['paymentStatus'] ?? 'unknown';
+        if (remaining <= 0 && amountPaid > 0) {
+          paymentStatus = 'paid';
+        } else if (pricingMode == 'daily' && amountPaid >= totalRent) {
+          paymentStatus = 'paid';
+        }
 
         Color statusColor;
         switch (paymentStatus.toString().toLowerCase()) {
@@ -400,7 +415,7 @@ if (pricingMode == 'daily' && amountPaid >= totalRent) {
           ),
           child: Column(
             children: [
-              // status header
+              // ── Status header ─────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
                 child: Row(
@@ -439,37 +454,55 @@ if (pricingMode == 'daily' && amountPaid >= totalRent) {
                 ),
               ),
               Divider(height: 1, color: AppColors.border.withOpacity(0.4)),
+
+              // ── Line items ────────────────────────────────────────────────
               _InfoRow(
                   icon: Icons.home_rounded,
                   label: "First Month Rent",
-                  value: "₱$firstMonthRent"),
+                  value: _fmtAmt(firstMonthRent)),
               _InfoDivider(),
               _InfoRow(
                   icon: Icons.security_rounded,
                   label: "Security Deposit",
-                  value: "₱$securityDeposit"),
+                  value: _fmtAmt(securityDeposit)),
               _InfoDivider(),
               _InfoRow(
                   icon: Icons.build_rounded,
                   label: "Service Fee",
-                  value: "₱$serviceFee"),
-              _InfoDivider(),
+                  value: _fmtAmt(serviceFee)),
+
+              // ── Separator before totals ───────────────────────────────────
+              Divider(height: 1, color: AppColors.border.withOpacity(0.4)),
+
+              // ── Totals ────────────────────────────────────────────────────
+              // Total Rent = priceMonthly × months (deposit/fee NOT included).
               _InfoRow(
                   icon: Icons.calculate_rounded,
                   label: "Total Rent",
-                  value: "₱$totalRent",
+                  value: _fmtAmt(totalRent),
+                  highlight: true),
+              _InfoDivider(),
+              // Fees & Deposit = one-time charges paid at booking only.
+              // Explains why Grand Total Paid exceeds Total Rent.
+              _InfoRow(
+                  icon: Icons.receipt_rounded,
+                  label: "Fees & Deposit",
+                  value: _fmtAmt(feesAndDeposit)),
+
+              Divider(height: 1, color: AppColors.border.withOpacity(0.4)),
+
+              // ── Bottom summary ────────────────────────────────────────────
+              _InfoRow(
+                  icon: Icons.check_circle_rounded,
+                  label: "Grand Total Paid",
+                  value: _fmtAmt(amountPaid),
+                  valueColor: const Color(0xFF22C55E),
                   highlight: true),
               _InfoDivider(),
               _InfoRow(
-                  icon: Icons.check_circle_rounded,
-                  label: "Total Paid",
-                  value: "₱$amountPaid",
-                  valueColor: const Color(0xFF22C55E)),
-              _InfoDivider(),
-              _InfoRow(
                 icon: Icons.pending_rounded,
-                label: "Remaining Balance",
-                value: "₱$remaining",
+                label: "Remaining Rent Balance",
+                value: _fmtAmt(remaining),
                 valueColor: remaining == 0
                     ? const Color(0xFF22C55E)
                     : AppColors.primaryOrange,

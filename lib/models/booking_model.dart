@@ -23,6 +23,7 @@ class BookingModel {
   final String pricingMode;
 
   final double priceMonthly;
+  final double pricePerNight;
   final int monthsStayed;
 
   final double stayTotal;
@@ -58,6 +59,7 @@ class BookingModel {
     required this.checkOut,
     required this.pricingMode,
     required this.priceMonthly,
+    this.pricePerNight = 0,
     required this.monthsStayed,
     required this.stayTotal,
     required this.serviceFee,
@@ -89,6 +91,7 @@ return {
       "checkOut": Timestamp.fromDate(checkOut),
       "pricingMode": pricingMode,
       "priceMonthly": priceMonthly,
+      "pricePerNight": pricePerNight,
       "monthsStayed": monthsStayed,
       "stayTotal": stayTotal,
       "serviceFee": serviceFee,

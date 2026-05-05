@@ -36,12 +36,10 @@ Future<void> main() async {
   );
 
   const stripeKey = String.fromEnvironment('STRIPE_PUBLISHABLE_KEY');
-  if (stripeKey.isEmpty) {
-    throw Exception('Missing STRIPE_PUBLISHABLE_KEY. Run with --dart-define=STRIPE_PUBLISHABLE_KEY=your_key_here');
+  if (stripeKey.isNotEmpty) {
+    Stripe.publishableKey = stripeKey;
+    await Stripe.instance.applySettings();
   }
-  Stripe.publishableKey = stripeKey;
-
-  await Stripe.instance.applySettings();
 
   // ❌ REMOVE THIS
   // await LocationService.detectLocation();

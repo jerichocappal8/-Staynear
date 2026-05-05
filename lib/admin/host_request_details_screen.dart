@@ -58,16 +58,19 @@ class _HostRequestDetailsScreenState extends State<HostRequestDetailsScreen>
       final now = FieldValue.serverTimestamp();
       final batch = FirebaseFirestore.instance.batch();
 
+      // (1) Mark host_requests as approved
       batch.update(
         FirebaseFirestore.instance
             .collection('host_requests')
             .doc(widget.userId),
         {'status': 'approved', 'reviewedAt': now},
       );
+      // (2) Promote user role — requires isAdmin() on users/{userId}
       batch.update(
         FirebaseFirestore.instance.collection('users').doc(widget.userId),
         {'hostRequest': 'approved', 'role': 'host', 'isHost': true},
       );
+      // (3) Create hosts record — requires isAdmin() on hosts/{hostId}
       batch.set(
         FirebaseFirestore.instance.collection('hosts').doc(widget.userId),
         {
@@ -85,6 +88,13 @@ class _HostRequestDetailsScreenState extends State<HostRequestDetailsScreen>
         Navigator.pop(context);
       }
     } catch (e) {
+      if (e is FirebaseException) {
+        debugPrint(
+          '[APPROVE] Firebase error [${e.code}] for applicant ${widget.userId}: ${e.message}',
+        );
+      } else {
+        debugPrint('[APPROVE] Unexpected error for applicant ${widget.userId}: $e');
+      }
       if (mounted) _showResultSnackbar('Action failed. Please try again.', isError: true);
     } finally {
       if (mounted) setState(() => _isProcessing = false);
@@ -100,6 +110,7 @@ class _HostRequestDetailsScreenState extends State<HostRequestDetailsScreen>
       final now = FieldValue.serverTimestamp();
       final batch = FirebaseFirestore.instance.batch();
 
+      // (1) Mark host_requests as rejected
       batch.update(
         FirebaseFirestore.instance
             .collection('host_requests')
@@ -110,6 +121,7 @@ class _HostRequestDetailsScreenState extends State<HostRequestDetailsScreen>
           'reviewedAt': now,
         },
       );
+      // (2) Reset user role — requires isAdmin() on users/{userId}
       batch.update(
         FirebaseFirestore.instance.collection('users').doc(widget.userId),
         {'hostRequest': 'rejected', 'role': 'user', 'isHost': false},
@@ -121,6 +133,13 @@ class _HostRequestDetailsScreenState extends State<HostRequestDetailsScreen>
         Navigator.pop(context);
       }
     } catch (e) {
+      if (e is FirebaseException) {
+        debugPrint(
+          '[REJECT] Firebase error [${e.code}] for applicant ${widget.userId}: ${e.message}',
+        );
+      } else {
+        debugPrint('[REJECT] Unexpected error for applicant ${widget.userId}: $e');
+      }
       if (mounted) _showResultSnackbar('Action failed. Please try again.', isError: true);
     } finally {
       if (mounted) setState(() => _isProcessing = false);

@@ -103,6 +103,20 @@ class _PaymentScreenState extends State<PaymentScreen> {
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<void> _confirmAndPay() async {
+    const stripeKey = String.fromEnvironment('STRIPE_PUBLISHABLE_KEY');
+    if (stripeKey.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Stripe is not configured. Run the app with --dart-define=STRIPE_PUBLISHABLE_KEY=your_key.',
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 6),
+        ),
+      );
+      return;
+    }
+
     setState(() => _loading = true);
 
     try {
@@ -182,12 +196,29 @@ class _PaymentScreenState extends State<PaymentScreen> {
       final batch = FirebaseFirestore.instance.batch();
 
       // 1. Update booking status
+      //
+      // remainingBalance formula (monthly):
+      //   starts at  stayTotal = priceMonthly × months       (e.g. ₱6,170 for 5 months)
+      //   after here = stayTotal − priceMonthly               (e.g. ₱4,936)
+      //   ↳ security deposit + service fee are NOT subtracted — they are one-time fees
+      //     already included in totalDueToday but not in the rent balance.
+      //
+      // paymentStatus is derived from the NEW remaining balance, not hardcoded,
+      // so a 1-month booking (newRemaining == 0) correctly becomes "paid".
+      final currentRemaining = pricingMode == 'monthly'
+          ? ((data['remainingBalance'] as num?) ?? 0.0).toDouble()
+          : 0.0;
+      final newRemaining = pricingMode == 'monthly'
+          ? (currentRemaining - monthlyPrice).clamp(0.0, double.infinity)
+          : 0.0;
+      final newPaymentStatus = newRemaining <= 0 ? 'paid' : 'partial';
+
       batch.update(bookingRef, {
         'amountPaid': FieldValue.increment(amountToCharge),
         'remainingBalance': pricingMode == 'monthly'
-            ? FieldValue.increment(-(monthlyPrice))
+            ? FieldValue.increment(-monthlyPrice)
             : 0,
-        'paymentStatus': pricingMode == 'daily' ? 'paid' : 'partial',
+        'paymentStatus': newPaymentStatus,
         'bookingStatus': 'confirmed',
         'paidAt': Timestamp.now(),
       });
