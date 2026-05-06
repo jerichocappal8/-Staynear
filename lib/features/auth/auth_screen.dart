@@ -243,7 +243,11 @@ late Animation<double> _fadeAnim;
                         // ── Google button ───────────────────────────────────
                         _GoogleButton(
                           loading: loading,
-                          onTap:   loading ? null : _handleGoogleLogin,
+                          onTap:   loading
+                              ? null
+                              : (isLogin
+                                  ? _handleGoogleLogin
+                                  : _handleGoogleSignup),
                           isDark:  isDark,
                         ),
 
@@ -435,6 +439,7 @@ Future<void> _handleAuth() async {
   =========================
   */
 
+  // Called when on the login screen (isLogin == true).
   Future<void> _handleGoogleLogin() async {
     try {
       if (!mounted) return;
@@ -454,6 +459,33 @@ Future<void> _handleAuth() async {
       } else {
         _showError(
           _authErrorMessage(e, fallback: 'Google sign-in failed. Please try again.'),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  // Called when on the signup screen (isLogin == false).
+  Future<void> _handleGoogleSignup() async {
+    try {
+      if (!mounted) return;
+      setState(() => loading = true);
+
+      final googleUser = await auth.signUpWithGoogle();
+
+      if (googleUser != null && mounted) {
+        _showSignupSuccess();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      if (e.toString().contains('account-already-exists')) {
+        _showError(
+          'An account already exists for this Google email. Please log in instead.',
+        );
+      } else {
+        _showError(
+          _authErrorMessage(e, fallback: 'Google sign-up failed. Please try again.'),
         );
       }
     } finally {

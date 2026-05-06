@@ -142,7 +142,8 @@ double get _totalDueToday {
                   _PropertyCard(apartment: widget.apartment, room: widget.room, fmt: _fmt),
                   const SizedBox(height: 18),
                   _InputDetailsCard(
-  guestInfo: guestInfo,
+  guestInfo:   guestInfo,
+  pricingMode: widget.room.pricingMode,
   onEdit: () async {
     final result = await Navigator.push(
       context,
@@ -684,12 +685,14 @@ class _PropertyImage extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _InputDetailsCard extends StatelessWidget {
-  final VoidCallback onEdit;
+  final VoidCallback    onEdit;
   final GuestInfoModel? guestInfo;
+  final String          pricingMode;
 
   const _InputDetailsCard({
     required this.onEdit,
     required this.guestInfo,
+    required this.pricingMode,
   });
 
   @override
@@ -736,13 +739,34 @@ class _InputDetailsCard extends StatelessWidget {
           _Divider(),
           const SizedBox(height: 16),
 
-_DetailRow(
-  icon: Icons.calendar_today_rounded,
-  label: 'Date',
-  value: guestInfo == null
-      ? 'Not selected'
-      : '${GuestInfoModel.fmtDate(guestInfo!.checkInDate)} - ${GuestInfoModel.fmtDate(guestInfo!.checkOutDate)}',
-),
+// ── Date rows — monthly shows move-in / duration / end date separately ──
+          if (pricingMode == 'monthly' && guestInfo != null) ...[
+            _DetailRow(
+              icon:  Icons.login_rounded,
+              label: 'Move-in',
+              value: GuestInfoModel.fmtDateLong(guestInfo!.checkInDate),
+            ),
+            const SizedBox(height: 14),
+            _DetailRow(
+              icon:  Icons.calendar_month_rounded,
+              label: 'Stay Duration',
+              value: '${guestInfo!.stayMonths} month${guestInfo!.stayMonths == 1 ? '' : 's'}',
+            ),
+            const SizedBox(height: 14),
+            _DetailRow(
+              icon:  Icons.logout_rounded,
+              label: 'Expected End',
+              value: GuestInfoModel.fmtDateLong(guestInfo!.checkOutDate),
+            ),
+          ] else ...[
+            _DetailRow(
+              icon:  Icons.calendar_today_rounded,
+              label: 'Date',
+              value: guestInfo == null
+                  ? 'Not selected'
+                  : '${GuestInfoModel.fmtDate(guestInfo!.checkInDate)} — ${GuestInfoModel.fmtDate(guestInfo!.checkOutDate)}',
+            ),
+          ],
 
           const SizedBox(height: 14),
 

@@ -60,4 +60,12 @@ class GuestInfoModel {
       '${d.month.toString().padLeft(2, '0')}/'
       '${d.day.toString().padLeft(2, '0')}/'
       '${d.year}';
+
+  /// e.g. "May 6, 2026"
+  static const _monthNames = [
+    '', 'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  static String fmtDateLong(DateTime d) =>
+      '${_monthNames[d.month]} ${d.day}, ${d.year}';
 }

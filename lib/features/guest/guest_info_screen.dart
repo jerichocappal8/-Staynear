@@ -43,7 +43,8 @@ class _GuestInfoScreenState extends State<GuestInfoScreen> {
   DateTime? _checkOut;
 
   // ── Monthly state ─────────────────────────────────────────────────────────
-  int _stayMonths = 1;
+  int       _stayMonths  = 1;
+  DateTime? _moveInDate;
 
   // ── Convenience ───────────────────────────────────────────────────────────
   bool get _isDaily => widget.room.pricingMode == 'daily';
@@ -111,6 +112,32 @@ class _GuestInfoScreenState extends State<GuestInfoScreen> {
       _checkOut != null && isSameDay(day, _checkOut);
 
   // ════════════════════════════════════════════════════════════════════════
+  //  MOVE-IN DATE PICKER  (monthly only)
+  // ════════════════════════════════════════════════════════════════════════
+
+  Future<void> _pickMoveInDate() async {
+    final today  = DateTime.now();
+    final picked = await showDatePicker(
+      context:     context,
+      initialDate: _moveInDate ?? today,
+      firstDate:   today,
+      lastDate:    today.add(const Duration(days: 365 * 2)),
+      helpText:    'SELECT MOVE-IN DATE',
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: ColorScheme.light(
+            primary:   AppColors.primaryOrange,
+            onPrimary: Colors.white,
+            onSurface: AppColors.text(ctx),
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) setState(() => _moveInDate = picked);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
   //  SAVE
   // ════════════════════════════════════════════════════════════════════════
 
@@ -131,12 +158,26 @@ class _GuestInfoScreenState extends State<GuestInfoScreen> {
       return;
     }
 
-    // For monthly rooms synthesise check-in/out from today + months.
-    final now      = DateTime.now();
-    final checkIn  = _isDaily ? _checkIn! : now;
+    // Validate move-in date for monthly rooms.
+    if (!_isDaily && _moveInDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select your move-in date.'),
+          backgroundColor: AppColors.primaryOrange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
+    // For monthly rooms checkIn = selected move-in date,
+    // checkOut = checkIn + selected months (calendar arithmetic, not days/30).
+    final checkIn = _isDaily ? _checkIn! : _moveInDate!;
     final checkOut = _isDaily
         ? _checkOut!
-        : DateTime(now.year, now.month + _stayMonths, now.day);
+        : DateTime(checkIn.year, checkIn.month + _stayMonths, checkIn.day);
 
     final model = GuestInfoModel(
       firstName:       _firstNameCtrl.text.trim(),
@@ -204,7 +245,11 @@ class _GuestInfoScreenState extends State<GuestInfoScreen> {
                     const SizedBox(height: 20),
 
                     // ── Section 2: Stay Duration ──────────────────────────
-                    _SectionLabel(label: 'Stay Duration'),
+                    _SectionLabel(
+                      label: _isDaily
+                          ? 'Stay Duration'
+                          : 'Move-in Date & Duration',
+                    ),
                     const SizedBox(height: 10),
                     if (_isDaily)
                       _DailyCalendarCard(
@@ -220,8 +265,10 @@ class _GuestInfoScreenState extends State<GuestInfoScreen> {
                       )
                     else
                       _MonthlyDurationCard(
-                        months:    _stayMonths,
-                        onChanged: (v) => setState(() => _stayMonths = v),
+                        months:      _stayMonths,
+                        moveInDate:  _moveInDate,
+                        onChanged:   (v) => setState(() => _stayMonths = v),
+                        onPickDate:  _pickMoveInDate,
                       ),
                     const SizedBox(height: 20),
 
@@ -596,75 +643,185 @@ class _DateBadge extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  MONTHLY — DURATION SELECTOR CARD
+//  MONTHLY — MOVE-IN DATE + DURATION SELECTOR CARD
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MonthlyDurationCard extends StatelessWidget {
   final int               months;
+  final DateTime?         moveInDate;
   final ValueChanged<int> onChanged;
+  final VoidCallback      onPickDate;
 
   const _MonthlyDurationCard({
     required this.months,
+    required this.moveInDate,
     required this.onChanged,
+    required this.onPickDate,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasDate = moveInDate != null;
+    final endDate = hasDate
+        ? DateTime(moveInDate!.year, moveInDate!.month + months, moveInDate!.day)
+        : null;
+
     return _CardShell(
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(9),
-            decoration: BoxDecoration(
-              color:        AppColors.orangeLight,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.calendar_month_rounded,
-                size: 18, color: AppColors.primaryOrange),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Stay Duration',
-                  style: TextStyle(
-                    fontSize:   14,
-                    fontWeight: FontWeight.w700,
-                    color:      AppColors.text(context),
-                  ),
+
+          // ── Move-in date tap target ────────────────────────────────────
+          GestureDetector(
+            onTap: onPickDate,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              decoration: BoxDecoration(
+                color: hasDate ? AppColors.orangeLight : AppColors.background(context),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: hasDate
+                      ? AppColors.primaryOrange
+                      : AppColors.border,
+                  width: hasDate ? 1.5 : 1.0,
                 ),
-                Text(
-                  '$months month${months == 1 ? '' : 's'}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color:    AppColors.textMid,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.event_rounded,
+                    size:  16,
+                    color: hasDate ? AppColors.primaryOrange : AppColors.textLight,
                   ),
-                ),
-              ],
-            ),
-          ),
-          _StepperBtn(
-            icon:  Icons.remove_rounded,
-            onTap: months > 1 ? () => onChanged(months - 1) : null,
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              '$months',
-              style: TextStyle(
-                fontSize:   20,
-                fontWeight: FontWeight.w800,
-                color:      AppColors.text(context),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Move-in Date',
+                          style: TextStyle(
+                            fontSize:      10,
+                            fontWeight:    FontWeight.w600,
+                            color:         hasDate
+                                ? AppColors.primaryOrange
+                                : AppColors.textLight,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hasDate
+                              ? GuestInfoModel.fmtDateLong(moveInDate!)
+                              : 'Tap to select date',
+                          style: TextStyle(
+                            fontSize:   13,
+                            fontWeight: FontWeight.w700,
+                            color:      hasDate
+                                ? AppColors.text(context)
+                                : AppColors.textLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size:  18,
+                    color: AppColors.textLight,
+                  ),
+                ],
               ),
             ),
           ),
-          _StepperBtn(
-            icon:   Icons.add_rounded,
-            onTap:  () => onChanged(months + 1),
-            filled: true,
+
+          const SizedBox(height: 12),
+
+          // ── Duration stepper row ───────────────────────────────────────
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color:        AppColors.orangeLight,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.calendar_month_rounded,
+                    size: 18, color: AppColors.primaryOrange),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Stay Duration',
+                      style: TextStyle(
+                        fontSize:   14,
+                        fontWeight: FontWeight.w700,
+                        color:      AppColors.text(context),
+                      ),
+                    ),
+                    Text(
+                      '$months month${months == 1 ? '' : 's'}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color:    AppColors.textMid,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _StepperBtn(
+                icon:  Icons.remove_rounded,
+                onTap: months > 1 ? () => onChanged(months - 1) : null,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  '$months',
+                  style: TextStyle(
+                    fontSize:   20,
+                    fontWeight: FontWeight.w800,
+                    color:      AppColors.text(context),
+                  ),
+                ),
+              ),
+              _StepperBtn(
+                icon:   Icons.add_rounded,
+                onTap:  () => onChanged(months + 1),
+                filled: true,
+              ),
+            ],
           ),
+
+          // ── Expected end date pill ─────────────────────────────────────
+          if (hasDate) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color:        AppColors.orangeLight,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.flag_rounded,
+                      size: 13, color: AppColors.primaryOrange),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Expected end: ${GuestInfoModel.fmtDateLong(endDate!)}',
+                    style: const TextStyle(
+                      fontSize:   12,
+                      fontWeight: FontWeight.w600,
+                      color:      AppColors.primaryOrange,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

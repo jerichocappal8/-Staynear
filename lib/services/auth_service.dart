@@ -51,12 +51,12 @@ Future<User?> register(String email, String password, String phone, String name)
     return userCred.user;
   }
 
-  // GOOGLE LOGIN
+  // GOOGLE LOGIN — login screen only. Blocks unregistered accounts.
   Future<User?> signInWithGoogle() async {
     final googleSignIn = GoogleSignIn();
     final googleUser = await googleSignIn.signIn();
     if (googleUser == null) {
-      debugPrint('[Google Sign-In] User cancelled the sign-in picker.');
+      debugPrint('[Google Login] User cancelled the sign-in picker.');
       return null;
     }
 
@@ -71,22 +71,79 @@ Future<User?> register(String email, String password, String phone, String name)
     final user = userCred.user;
 
     if (user == null) {
-      debugPrint('[Google Sign-In] Firebase credential returned null user.');
+      debugPrint('[Google Login] Firebase credential returned null user.');
       return null;
     }
 
-    debugPrint('[Google Sign-In] Firebase auth succeeded — uid=${user.uid}, email=${user.email}');
+    debugPrint('[Google Login] Firebase auth succeeded — uid=${user.uid}, email=${user.email}');
 
     final doc = await _db.collection('users').doc(user.uid).get();
 
     if (!doc.exists) {
-      debugPrint('[Google Sign-In] No Firestore document at users/${user.uid} — account not registered. Signing out.');
+      debugPrint('[Google Login] No users/${user.uid} document — not registered. Signing out.');
       await _auth.signOut();
       await googleSignIn.signOut();
       throw Exception('no-account-found');
     }
 
-    debugPrint('[Google Sign-In] Firestore document found for uid=${user.uid}. Login proceeding.');
+    debugPrint('[Google Login] Document found for uid=${user.uid}. Proceeding.');
+    return user;
+  }
+
+  // GOOGLE SIGNUP — signup screen only. Creates user doc for new accounts.
+  Future<User?> signUpWithGoogle() async {
+    final googleSignIn = GoogleSignIn();
+    final googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      debugPrint('[Google Signup] User cancelled the sign-in picker.');
+      return null;
+    }
+
+    final googleAuth = await googleUser.authentication;
+
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    final userCred = await _auth.signInWithCredential(credential);
+    final user = userCred.user;
+
+    if (user == null) {
+      debugPrint('[Google Signup] Firebase credential returned null user.');
+      return null;
+    }
+
+    debugPrint('[Google Signup] Firebase auth succeeded — uid=${user.uid}, email=${user.email}');
+
+    final doc = await _db.collection('users').doc(user.uid).get();
+
+    if (doc.exists) {
+      debugPrint('[Google Signup] users/${user.uid} already exists — account already registered. Signing out.');
+      await _auth.signOut();
+      await googleSignIn.signOut();
+      throw Exception('account-already-exists');
+    }
+
+    debugPrint('[Google Signup] Creating users/${user.uid} document.');
+    // Fields must satisfy ownerUserCreateAllowed:
+    // - all keys must be in ownerUserCreateFields()
+    // - role must be 'user', isAdmin false, isHost false
+    // - hostRequest omitted (rules only allow 'pending' if present; 'none' is rejected)
+    await _db.collection('users').doc(user.uid).set({
+      'email':     user.email ?? '',
+      'name':      user.displayName ?? '',
+      'photoUrl':  user.photoURL ?? '',
+      'provider':  'google',
+      'role':      'user',
+      'isAdmin':   false,
+      'isHost':    false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    debugPrint('[Google Signup] Document created. Signing out so user logs in explicitly.');
+    await _auth.signOut();
+    await googleSignIn.signOut();
     return user;
   }
 // RESET PASSWORD
