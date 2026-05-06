@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
@@ -52,8 +53,12 @@ Future<User?> register(String email, String password, String phone, String name)
 
   // GOOGLE LOGIN
   Future<User?> signInWithGoogle() async {
-    final googleUser = await GoogleSignIn().signIn();
-    if (googleUser == null) return null;
+    final googleSignIn = GoogleSignIn();
+    final googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      debugPrint('[Google Sign-In] User cancelled the sign-in picker.');
+      return null;
+    }
 
     final googleAuth = await googleUser.authentication;
 
@@ -63,19 +68,25 @@ Future<User?> register(String email, String password, String phone, String name)
     );
 
     final userCred = await _auth.signInWithCredential(credential);
-
     final user = userCred.user;
 
-    if (user != null) {
-      await _db.collection("users").doc(user.uid).set({
-        "email": user.email,
-        "name": user.displayName,
-        "photo": user.photoURL,
-        "provider": "google",
-        "lastLogin": FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+    if (user == null) {
+      debugPrint('[Google Sign-In] Firebase credential returned null user.');
+      return null;
     }
 
+    debugPrint('[Google Sign-In] Firebase auth succeeded — uid=${user.uid}, email=${user.email}');
+
+    final doc = await _db.collection('users').doc(user.uid).get();
+
+    if (!doc.exists) {
+      debugPrint('[Google Sign-In] No Firestore document at users/${user.uid} — account not registered. Signing out.');
+      await _auth.signOut();
+      await googleSignIn.signOut();
+      throw Exception('no-account-found');
+    }
+
+    debugPrint('[Google Sign-In] Firestore document found for uid=${user.uid}. Login proceeding.');
     return user;
   }
 // RESET PASSWORD

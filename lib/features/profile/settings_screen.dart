@@ -1023,7 +1023,7 @@ StreamBuilder<DocumentSnapshot>(
         title: 'Biometric Login',
         subtitle: 'Use fingerprint or face ID to sign in',
         prefKey: SettingsPrefs.kSecurityBiometric,
-        defaultValue: true,
+        defaultValue: false,
       ),
 
       _SettingsTile(

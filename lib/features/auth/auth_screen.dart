@@ -320,17 +320,15 @@ Future<void> _handleAuth() async {
     if (isLogin) {
       bool biometricEnabled = SettingsPrefs.getBool(
         SettingsPrefs.kSecurityBiometric,
-        defaultValue: true,
+        defaultValue: false,
       );
+
+      debugPrint('[Biometric] enabled=$biometricEnabled');
 
       if (biometricEnabled) {
         bool authenticated = await BiometricService.authenticate();
-
-        if (!authenticated) {
-          _showError("Biometric authentication failed");
-          setState(() => loading = false);
-          return;
-        }
+        debugPrint('[Biometric] result=$authenticated');
+        // Biometric failure is non-fatal — fall through to normal login.
       }
 
       final loginUser = await auth.login(
@@ -449,9 +447,15 @@ Future<void> _handleAuth() async {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      if (e.toString().contains('no-account-found')) {
+        _showError(
+          'No account found for this Google email. Please create an account first.',
+        );
+      } else {
+        _showError(
+          _authErrorMessage(e, fallback: 'Google sign-in failed. Please try again.'),
+        );
+      }
     } finally {
       if (mounted) setState(() => loading = false);
     }

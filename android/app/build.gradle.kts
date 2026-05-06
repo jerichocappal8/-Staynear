@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -6,6 +8,13 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// project.findProperty() reads gradle.properties, NOT local.properties.
+// Explicitly load local.properties so MAPS_API_KEY is available at build time.
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -23,21 +32,24 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.staynear"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        // Google Maps API key — set MAPS_API_KEY in android/local.properties or as an env var.
-        // Never commit the real key to source control.
-        manifestPlaceholders["MAPS_API_KEY"] =
-            (System.getenv("MAPS_API_KEY")
-                ?: (project.findProperty("MAPS_API_KEY") as String?)
-                ?: "")
+        // Env var takes priority over local.properties (useful for CI).
+        val mapsKey = System.getenv("MAPS_API_KEY")
+            ?: localProps.getProperty("MAPS_API_KEY", "")
+
+        if (mapsKey.isEmpty()) {
+            println("WARNING ⚠️  MAPS_API_KEY is not set — Android Google Maps will show blank tiles.")
+            println("  Add MAPS_API_KEY=<your_key> to android/local.properties")
+        } else {
+            println("INFO: MAPS_API_KEY loaded (${mapsKey.length} chars).")
+        }
+
+        manifestPlaceholders["MAPS_API_KEY"] = mapsKey
     }
 
     buildTypes {

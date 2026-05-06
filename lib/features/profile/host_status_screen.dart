@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:staynear/core/auth_helper.dart';
 import 'package:staynear/core/app_colors.dart';
+import '../host/host_dashboard_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Status configuration — drives colours, icons, and copy for each state
@@ -117,7 +118,10 @@ class HostStatusScreen extends StatelessWidget {
                         _WhatHappensNextCard(themeColor: cfg.themeColor),
                         const SizedBox(height: 16),
                       ],
-                      _backButton(context, cfg.themeColor),
+                      if (status == 'approved')
+                        _hostDashboardButton(context, cfg.themeColor)
+                      else
+                        _backButton(context, cfg.themeColor),
                       if (status == 'pending') ...[
                         const SizedBox(height: 10),
                         const Center(
@@ -147,6 +151,30 @@ class HostStatusScreen extends StatelessWidget {
         icon: const Icon(Icons.arrow_back_rounded, size: 18),
         label: const Text('Back to Profile',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: themeColor,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
+    );
+  }
+
+  Widget _hostDashboardButton(BuildContext context, Color themeColor) {
+    return SizedBox(
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: () => Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const HostDashboardScreen()),
+          (route) => false,
+        ),
+        icon: const Icon(Icons.home_work_rounded, size: 18),
+        label: const Text(
+          'Go to Host Dashboard',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: themeColor,
           foregroundColor: Colors.white,

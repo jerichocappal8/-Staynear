@@ -91,11 +91,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
       ),
     );
 
+    debugPrint('[Payment] presentPaymentSheet — opening Stripe UI');
     try {
       await Stripe.instance.presentPaymentSheet();
     } on StripeException {
+      debugPrint('[Payment] presentPaymentSheet — cancelled or dismissed');
       throw Exception("payment_cancelled");
     }
+    debugPrint('[Payment] presentPaymentSheet — returned successfully');
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -189,6 +192,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       }
 
       // ── Stripe — early return on cancellation, no Firestore writes ───────
+      debugPrint('[Payment] calling _startStripePayment amount=$amountToCharge');
       try {
         await _startStripePayment(amountToCharge);
       } catch (e) {
@@ -204,6 +208,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         }
         return;
       }
+      debugPrint('[Payment] Stripe success — proceeding to Firestore batch');
 
       // ── Validate doc path fields before building refs ────────────────────
       final apartmentId = data['apartmentId'] as String?;
@@ -291,7 +296,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
       // 4. Decrement available units
       batch.update(roomRef, {'availableUnits': FieldValue.increment(-1)});
 
+      debugPrint('[Payment] committing Firestore batch');
       await batch.commit();
+      debugPrint('[Payment] batch committed');
+
+      if (!mounted) return;
 
       // ── Conversation update — kept separate (requires a query) ──────────
       final convoSnap = await FirebaseFirestore.instance
@@ -309,6 +318,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
       if (!mounted) return;
 
+      debugPrint('[Payment] navigating to BookingSuccessScreen');
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -316,6 +326,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               BookingSuccessScreen(guestEmail: data['guestEmail'] ?? ''),
         ),
       );
+      debugPrint('[Payment] navigation dispatched');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

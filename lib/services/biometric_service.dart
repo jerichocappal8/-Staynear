@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:local_auth/local_auth.dart';
 
 class BiometricService {
@@ -8,7 +9,10 @@ class BiometricService {
       bool canCheck = await _auth.canCheckBiometrics;
       bool isSupported = await _auth.isDeviceSupported();
 
+      debugPrint('[BiometricService] canCheckBiometrics=$canCheck isDeviceSupported=$isSupported');
+
       if (!canCheck || !isSupported) {
+        debugPrint('[BiometricService] Biometric unavailable on this device — skipping.');
         return false;
       }
 
@@ -17,8 +21,10 @@ class BiometricService {
         biometricOnly: true,
       );
 
+      debugPrint('[BiometricService] authenticate() returned $authenticated');
       return authenticated;
     } catch (e) {
+      debugPrint('[BiometricService] Exception during authenticate(): $e');
       return false;
     }
   }

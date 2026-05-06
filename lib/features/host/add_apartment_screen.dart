@@ -841,48 +841,114 @@ Widget _basicInfoSection() {
     required TextEditingController ctrl,
     required IconData              icon,
     required ValueChanged<String>  onChanged,
+    int min = 1,
+    int max = 24,
   }) {
+    final value = int.tryParse(ctrl.text) ?? min;
+    final atMin = value <= min;
+    final atMax = value >= max;
+
+    void step(int delta) {
+      final next = (value + delta).clamp(min, max);
+      ctrl.text = next.toString();
+      onChanged(ctrl.text);
+      setState(() {});
+    }
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color:        AppColors.cardSoft(context),
         borderRadius: BorderRadius.circular(16),
-        border:       Border.all(color: AppColors.border, width: 1),
+        border:       Border.all(color: AppColors.primaryOrange.withOpacity(0.35), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Label row
           Row(
             children: [
-              Icon(icon, size: 16, color: AppColors.primaryOrange),
-              const SizedBox(width: 6),
-              Text(label,
+              Icon(icon, size: 15, color: AppColors.primaryOrange),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      fontSize:   12,
-                      fontWeight: FontWeight.w700,
-                      color:      AppColors.text(context))),
+                    fontSize:   12,
+                    fontWeight: FontWeight.w700,
+                    color:      AppColors.text(context),
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 8),
-          TextField(
-            controller:      ctrl,
-            keyboardType:    TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            onChanged:       onChanged,
-            textAlign:       TextAlign.center,
-            style: const TextStyle(
-                fontSize:   22,
-                fontWeight: FontWeight.w800,
-                color:      AppColors.primaryOrange),
-            decoration: const InputDecoration(
-              border:         InputBorder.none,
-              isDense:        true,
-              contentPadding: EdgeInsets.zero,
-            ),
+          const SizedBox(height: 10),
+          // Stepper row: [−] value [+]
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _stepperBtn(
+                icon:     Icons.remove_rounded,
+                disabled: atMin,
+                onTap:    atMin ? null : () => step(-1),
+              ),
+              Text(
+                ctrl.text,
+                style: const TextStyle(
+                  fontSize:   24,
+                  fontWeight: FontWeight.w800,
+                  color:      AppColors.primaryOrange,
+                ),
+              ),
+              _stepperBtn(
+                icon:     Icons.add_rounded,
+                disabled: atMax,
+                onTap:    atMax ? null : () => step(1),
+              ),
+            ],
           ),
+          const SizedBox(height: 6),
           Text(sublabel,
               style: const TextStyle(fontSize: 11, color: AppColors.textLight)),
+          const SizedBox(height: 2),
+          const Text(
+            'Tap + or − to adjust',
+            style: TextStyle(fontSize: 10, color: AppColors.textLight),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _stepperBtn({
+    required IconData     icon,
+    required bool         disabled,
+    required VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width:  28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: disabled
+              ? AppColors.border
+              : AppColors.primaryOrange.withOpacity(0.12),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: disabled
+                ? AppColors.border
+                : AppColors.primaryOrange.withOpacity(0.4),
+            width: 1,
+          ),
+        ),
+        child: Icon(
+          icon,
+          size:  14,
+          color: disabled ? AppColors.textLight : AppColors.primaryOrange,
+        ),
       ),
     );
   }

@@ -1595,6 +1595,29 @@ class _MapPreview extends StatelessWidget {
             },
             zoomControlsEnabled:     false,
             myLocationButtonEnabled: false,
+            liteModeEnabled:         true,
+          ),
+        ),
+      ),
+      const SizedBox(height: 6),
+      Align(
+        alignment: Alignment.centerRight,
+        child: TextButton.icon(
+          onPressed: () async {
+            final uri = Uri.parse('https://maps.google.com/?q=$lat,$lng');
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          },
+          icon: const Icon(Icons.open_in_new_rounded, size: 14),
+          label: const Text('Open in Google Maps'),
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.primaryOrange,
+            textStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ),
       ),
