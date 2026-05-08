@@ -32,7 +32,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../profile/host_application_screen.dart';
 import '../profile/host_status_screen.dart';
 import 'package:staynear/core/auth_helper.dart';
-import '../host/host_dashboard_screen.dart';
+import '../host/host_shell.dart';
 import 'apartment_detail_page.dart';
 import '../../core/app_colors.dart';
 import 'search_filter_screen.dart';
@@ -121,7 +121,7 @@ Future<void> _handleHostPress() async {
   if (data['isHost'] == true) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const HostDashboardScreen()),
+      MaterialPageRoute(builder: (_) => const HostShell()),
     );
     return;
   }

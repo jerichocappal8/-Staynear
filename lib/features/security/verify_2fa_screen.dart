@@ -8,7 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:staynear/core/auth_helper.dart';
 import 'package:staynear/core/app_colors.dart';
 
-import 'backup_codes_screen.dart';
+import 'backup_codes_page.dart';
 
 // ─────────────────────────────────────────────
 //  AppColors (inline – remove if already imported)
@@ -194,10 +194,12 @@ class _Verify2FAScreenState extends State<Verify2FAScreen>
       await Future.delayed(const Duration(milliseconds: 900));
 
       if (!mounted) return;
+      // Route to BackupCodesPage which loads codes from Firestore, so codes
+      // remain viewable even if the user closes the app after this point.
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
-          pageBuilder: (_, animation, __) => BackupCodesScreen(codes: codes),
+          pageBuilder: (_, animation, __) => const BackupCodesPage(),
           transitionsBuilder: (_, animation, __, child) => FadeTransition(
             opacity: animation, child: child,
           ),

@@ -8,9 +8,6 @@ import '../profile/payment_details_screen.dart';
 import '../profile/faq_screen.dart';
 import '../home/home_screen.dart';
 import '../user/user_root_screen.dart';
-import '../host/host_bottom_nav.dart';
-import '../host/host_dashboard_screen.dart';
-import '../chat/chat_list_host_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -159,22 +156,7 @@ class _HostProfileScreenState extends State<HostProfileScreen>
     final email = userData?['email'] ?? "";
     final photo = userData?['photo'];
 
-    return GestureDetector(
-      // ── Keep original swipe gesture ─────────────────────────────────────────
-      onHorizontalDragEnd: (details) {
-        if (details.primaryVelocity! > 0) {
-          Navigator.pushReplacement(
-            context,
-            SlidePageRoute(
-              page: ChatListHostScreen(
-                hostId: FirebaseAuth.instance.currentUser!.uid,
-              ),
-            ),
-          );
-        }
-      },
-
-      child: Scaffold(
+    return Scaffold(
         backgroundColor: AppColors.background(context),
 
         body: SafeArea(
@@ -229,30 +211,6 @@ class _HostProfileScreenState extends State<HostProfileScreen>
             ),
           ),
         ),
-
-        // ── Keep original bottom nav ────────────────────────────────────────
-        bottomNavigationBar: HostBottomNav(
-          currentIndex: 2,
-          onTap: (index) {
-            if (index == 0) {
-              Navigator.pushReplacement(
-                context,
-                SlidePageRoute(page: const HostDashboardScreen()),
-              );
-            }
-            if (index == 1) {
-              Navigator.pushReplacement(
-                context,
-                SlidePageRoute(
-                  page: ChatListHostScreen(
-                    hostId: FirebaseAuth.instance.currentUser!.uid,
-                  ),
-                ),
-              );
-            }
-          },
-        ),
-      ),
     );
   }
 

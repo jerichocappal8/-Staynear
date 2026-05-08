@@ -9,15 +9,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'chat_room_screen.dart';
 import 'package:staynear/core/app_colors.dart';
 
-import '../../core/animations/slide_page_route.dart';
-import '../host/host_bottom_nav.dart';
-import '../host/host_dashboard_screen.dart';
-import '../host/host_profile_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// Returns the first non-null, non-empty string — safe against Firestore "" fields.
+String _firstNonEmpty(List<dynamic?> values) {
+  for (final v in values) {
+    final s = (v ?? '').toString().trim();
+    if (s.isNotEmpty) return s;
+  }
+  return '';
+}
 
 class ChatListHostScreen extends StatelessWidget {
   final String hostId;
@@ -37,31 +42,7 @@ class ChatListHostScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-return GestureDetector(
-  onHorizontalDragEnd: (details) {
-
-    // swipe RIGHT → Dashboard
-    if (details.primaryVelocity! > 0) {
-      Navigator.pushReplacement(
-        context,
-        SlidePageRoute(
-          page: const HostDashboardScreen(),
-        ),
-      );
-    }
-
-    // swipe LEFT → Profile
-    if (details.primaryVelocity! < 0) {
-      Navigator.pushReplacement(
-        context,
-        SlidePageRoute(
-          page: const HostProfileScreen(),
-        ),
-      );
-    }
-  },
-
-  child: Scaffold(
+return Scaffold(
     backgroundColor: AppColors.background(context),
 
     // ── AppBar ─────────────────────────────────────────────
@@ -163,10 +144,21 @@ return GestureDetector(
 
                 final userData =
                     (userSnapshot.data!.data() as Map<String, dynamic>?) ?? {};
-                final firstName = (userData['firstName'] as String? ?? '').trim();
-                final lastName  = (userData['lastName']  as String? ?? '').trim();
-                final fetched   = '$firstName $lastName'.trim();
-                final photo     = userData['photo'] as String? ?? '';
+                // Name: name/fullName/displayName first, then firstName+lastName
+                String fetched = '';
+                for (final k in const ['name', 'fullName', 'displayName']) {
+                  final v = (userData[k] ?? '').toString().trim();
+                  if (v.isNotEmpty) { fetched = v; break; }
+                }
+                if (fetched.isEmpty) {
+                  fetched = ('${userData['firstName'] ?? ''} ${userData['lastName'] ?? ''}').trim();
+                }
+                final photo = _firstNonEmpty([
+                  userData['photo'],
+                  userData['photoUrl'],
+                  userData['profileImageUrl'],
+                  userData['avatarUrl'],
+                ]);
 
                 // Fallback order:
                 //   1. fetched user-doc name
@@ -182,6 +174,7 @@ return GestureDetector(
                 final resolvedPhoto = photo.isNotEmpty
                     ? photo
                     : (data['userPhoto'] as String? ?? '');
+                debugPrint('[ChatAvatar] host list: userId=${data['userId']}, livePhoto="$photo", resolvedPhoto="$resolvedPhoto"');
 
                 return _ConversationTile(
                   conversationId: conversations[index].id,
@@ -198,7 +191,7 @@ return GestureDetector(
                           conversationId: conversations[index].id,
                           otherParticipantId: data['userId'],
                           otherParticipantName: name,
-                          otherParticipantPhoto: photo ?? '',
+                          otherParticipantPhoto: resolvedPhoto,
                           propertyName: data['propertyName'] ?? '',
                         ),
                       ),
@@ -212,33 +205,7 @@ return GestureDetector(
       },
     ),
 
-    // ── Bottom Navbar ─────────────────────────────────────
-    bottomNavigationBar: HostBottomNav(
-      currentIndex: 1,
-      onTap: (index) {
-
-        if (index == 0) {
-          Navigator.pushReplacement(
-            context,
-            SlidePageRoute(
-              page: const HostDashboardScreen(),
-            ),
-          );
-        }
-
-        if (index == 2) {
-          Navigator.pushReplacement(
-            context,
-            SlidePageRoute(
-              page: const HostProfileScreen(),
-            ),
-          );
-        }
-
-      },
-    ),
-  ),
-);
+  );
   }
 }
 
@@ -430,7 +397,7 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasPhoto = photo != null && photo.toString().isNotEmpty;
+    final photoStr = photo?.toString().trim() ?? '';
 
     return Container(
       width:  52,
@@ -440,23 +407,43 @@ class _Avatar extends StatelessWidget {
         border: Border.all(
             color: AppColors.primaryOrange.withOpacity(.25), width: 2),
       ),
-      child: CircleAvatar(
-        radius: 24,
-        backgroundColor: AppColors.orangeLight,
-        backgroundImage: hasPhoto ? NetworkImage(photo.toString()) : null,
-        child: hasPhoto
-            ? null
-            : Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: const TextStyle(
-                  fontSize:   18,
-                  fontWeight: FontWeight.w800,
-                  color:      AppColors.primaryOrange,
-                ),
-              ),
+      child: ClipOval(
+        child: photoStr.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl:    photoStr,
+                width:       52,
+                height:      52,
+                fit:         BoxFit.cover,
+                placeholder: (_, __) => Container(color: AppColors.orangeLight),
+                errorWidget: (_, url, err) {
+                  debugPrint('[ChatAvatar] host list image FAILED: $url | $err');
+                  return _Initials(name: name);
+                },
+              )
+            : _Initials(name: name),
       ),
     );
   }
+}
+
+class _Initials extends StatelessWidget {
+  final String name;
+  const _Initials({required this.name});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    color: AppColors.orangeLight,
+    child: Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: const TextStyle(
+          fontSize:   18,
+          fontWeight: FontWeight.w800,
+          color:      AppColors.primaryOrange,
+        ),
+      ),
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

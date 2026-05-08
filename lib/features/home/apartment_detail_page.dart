@@ -125,25 +125,57 @@ class _ApartmentDetailPageState extends State<ApartmentDetailPage>
   // ── logic (UNCHANGED) ─────────────────────────────────────────────────────
 
 Future<void> _loadHost(String uid) async {
+  Map<String, dynamic>? u;
+  Map<String, dynamic>? hr;
 
-  final doc = await FirebaseFirestore.instance
-      .collection('users')
-      .doc(uid)
-      .get();
+  try {
+    final uDoc = await FirebaseFirestore.instance
+        .collection('users').doc(uid).get();
+    if (uDoc.exists) u = uDoc.data();
+  } catch (_) {}
 
-  if (!doc.exists || !mounted) return;
+  try {
+    final hrDoc = await FirebaseFirestore.instance
+        .collection('host_requests').doc(uid).get();
+    if (hrDoc.exists) hr = hrDoc.data();
+  } catch (_) {}
 
-  final d = doc.data()!;
+  if (!mounted) return;
+
+  // Name fallback chain
+  String resolvedName = '';
+  if (u != null) {
+    final fn = (u['fullName'] ?? '').toString().trim();
+    final n  = (u['name'] ?? '').toString().trim();
+    final dn = (u['displayName'] ?? '').toString().trim();
+    final combined = ('${u['firstName'] ?? ''} ${u['lastName'] ?? ''}').trim();
+    resolvedName = fn.isNotEmpty ? fn
+        : n.isNotEmpty  ? n
+        : dn.isNotEmpty ? dn
+        : combined;
+  }
+  if (resolvedName.isEmpty && hr != null) {
+    final fn = (hr['fullName'] ?? '').toString().trim();
+    final combined = ('${hr['firstName'] ?? ''} ${hr['lastName'] ?? ''}').trim();
+    resolvedName = fn.isNotEmpty ? fn : combined;
+  }
+
+  // Photo fallback chain
+  String resolvedPhoto = '';
+  if (u != null) {
+    resolvedPhoto = (u['photoUrl'] ?? u['profileImageUrl'] ?? u['photo'] ?? '').toString();
+  }
+  if (resolvedPhoto.isEmpty && hr != null) {
+    resolvedPhoto = (hr['profilePhotoUrl'] ?? hr['photoUrl'] ?? '').toString();
+  }
+
+  // Phone (users only)
+  final resolvedPhone = u != null ? (u['phone'] ?? '').toString() : '';
 
   setState(() {
-
-    hostName =
-        '${d['firstName'] ?? ''} ${d['lastName'] ?? ''}'.trim();
-
-    hostPhoto = d['photo'] ?? '';
-
-    hostPhone = d['phone'] ?? '';
-
+    hostName  = resolvedName;
+    hostPhoto = resolvedPhoto;
+    hostPhone = resolvedPhone;
   });
 }
 
@@ -817,7 +849,7 @@ class _HostCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  name.isNotEmpty ? name : 'Host',
+                  name.isNotEmpty ? name : 'Property Owner',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize:   14.5,
@@ -1397,29 +1429,52 @@ class _FacilitiesSection extends StatelessWidget {
       {required this.facilities, required this.primaryOrange});
 
   static const _icons = <String, IconData>{
-    'Air conditioner':  Icons.ac_unit,
-    'Aircon':           Icons.ac_unit,
-    'Kitchen':          Icons.kitchen,
-    'Free WiFi':        Icons.wifi,
-    'WiFi':             Icons.wifi,
-    'Parking':          Icons.local_parking,
-    'Free parking':     Icons.local_parking,
-    'Washing machine':  Icons.local_laundry_service,
-    'Swimming pool':    Icons.pool,
-    'Gym':              Icons.fitness_center,
-    'TV':               Icons.tv,
-    'Balcony':          Icons.deck,
-    'CCTV':             Icons.videocam_outlined,
-    'Pet Friendly':     Icons.pets,
+    'Air conditioner':   Icons.ac_unit,
+    'Aircon':            Icons.ac_unit,
+    'Kitchen':           Icons.kitchen,
+    'Kitchen access':    Icons.kitchen,
+    'Free WiFi':         Icons.wifi,
+    'WiFi':              Icons.wifi,
+    'Parking':           Icons.local_parking,
+    'Free parking':      Icons.local_parking,
+    'Washing machine':   Icons.local_laundry_service,
+    'Laundry area':      Icons.local_laundry_service,
+    'Swimming pool':     Icons.pool,
+    'Gym':               Icons.fitness_center,
+    'TV':                Icons.tv,
+    'Balcony':           Icons.deck,
+    'CCTV':              Icons.videocam_outlined,
+    'Pet Friendly':      Icons.pets,
+    'Private bathroom':  Icons.shower_outlined,
+    'Shared bathroom':   Icons.bathroom_outlined,
+    'Study table':       Icons.desk_outlined,
+    'Cabinet / closet':  Icons.checkroom_outlined,
+    'Bed included':      Icons.bed_outlined,
+    'Water included':    Icons.water_drop_outlined,
+    'Electricity included': Icons.bolt_outlined,
+    'Security guard':    Icons.security_outlined,
+    'Near transportation': Icons.directions_bus_outlined,
+    'Near school':       Icons.school_outlined,
+    'Near mall':         Icons.shopping_bag_outlined,
+    'Near hospital':     Icons.local_hospital_outlined,
   };
   static const _colors = <String, Color>{
-    'Air conditioner':  Color(0xFF3B82F6),
-    'Aircon':           Color(0xFF3B82F6),
-    'Free WiFi':        Color(0xFF8B5CF6),
-    'WiFi':             Color(0xFF8B5CF6),
-    'Swimming pool':    Color(0xFF06B6D4),
-    'Gym':              Color(0xFFEF4444),
-    'CCTV':             Color(0xFF64748B),
+    'Air conditioner':   Color(0xFF3B82F6),
+    'Aircon':            Color(0xFF3B82F6),
+    'Free WiFi':         Color(0xFF8B5CF6),
+    'WiFi':              Color(0xFF8B5CF6),
+    'Swimming pool':     Color(0xFF06B6D4),
+    'Gym':               Color(0xFFEF4444),
+    'CCTV':              Color(0xFF64748B),
+    'Private bathroom':  Color(0xFF06B6D4),
+    'Shared bathroom':   Color(0xFF06B6D4),
+    'Water included':    Color(0xFF3B82F6),
+    'Electricity included': Color(0xFFF59E0B),
+    'Security guard':    Color(0xFF64748B),
+    'Near school':       Color(0xFF10B981),
+    'Near hospital':     Color(0xFFEF4444),
+    'Near mall':         Color(0xFF8B5CF6),
+    'Near transportation': Color(0xFF6366F1),
   };
 
   @override

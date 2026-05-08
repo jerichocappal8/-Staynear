@@ -110,7 +110,7 @@ late Animation<double> _fadeAnim;
                       children: [
                         // Heading
                         Text(
-                          isLogin ? 'Welcome back 👋' : "Let's get started 🚀",
+                          isLogin ? 'Welcome back' : "Let's get started",
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.w800,
@@ -123,7 +123,7 @@ late Animation<double> _fadeAnim;
 
                         Text(
                           isLogin
-                              ? 'Log in to your StayNear account.'
+                              ? 'Log in to continue your stay.'
                               : 'Create your free StayNear account.',
                           style: const TextStyle(
                             fontSize: 14,
@@ -408,21 +408,32 @@ Future<void> _handleAuth() async {
 
   Future<void> _check2FA() async {
     final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
+    if (currentUser == null) {
+      debugPrint('[AdminRoute] _check2FA: currentUser is null — aborting');
+      return;
+    }
 
     final uid = currentUser.uid;
+    debugPrint('[AdminRoute] _check2FA: uid=$uid');
 
     final doc = await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .get();
 
+    debugPrint('[AdminRoute] _check2FA: doc.exists=${doc.exists}');
+
     final data    = doc.data();
-    bool enabled  = data?['twoFAEnabled'] ?? false;
-    String? secret = data?['twoFASecret'];
+    final role    = (data?['role'] ?? 'user').toString().trim();
+    final isAdmin = data?['isAdmin'] == true;
+    final enabled = data?['twoFAEnabled'] as bool? ?? false;
+    final secret  = data?['twoFASecret'] as String?;
+
+    debugPrint('[AdminRoute] _check2FA: role="$role"  isAdmin=$isAdmin  twoFAEnabled=$enabled');
 
     if (enabled && secret != null) {
       if (!mounted) return;
+      debugPrint('[AdminRoute] → Login2FAScreen (2FA required)');
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => Login2FAScreen(secret: secret)),
@@ -430,7 +441,8 @@ Future<void> _handleAuth() async {
       return;
     }
 
-    await _goHome();
+    // Pass already-fetched role/isAdmin so _goHome() skips a second Firestore read.
+    await _goHome(cachedRole: role, cachedIsAdmin: isAdmin);
   }
 
   /*
@@ -499,22 +511,46 @@ Future<void> _handleAuth() async {
   =========================
   */
 
-  Future<void> _goHome() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
+  Future<void> _goHome({String? cachedRole, bool? cachedIsAdmin}) async {
+    String role;
+    bool   isAdmin;
 
-    final uid = currentUser.uid;
+    if (cachedRole != null) {
+      // Use data already fetched in _check2FA — no second Firestore read.
+      role    = cachedRole;
+      isAdmin = cachedIsAdmin ?? false;
+      debugPrint('[AdminRoute] _goHome: using cached role="$role"  isAdmin=$isAdmin');
+    } else {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        debugPrint('[AdminRoute] _goHome: currentUser is null — aborting');
+        return;
+      }
+      final uid = currentUser.uid;
+      debugPrint('[AdminRoute] _goHome: fetching users/$uid');
 
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
 
-    final role = userDoc.data()?['role'] ?? 'user';
+      debugPrint('[AdminRoute] _goHome: doc.exists=${userDoc.exists}');
+      final data = userDoc.data();
+      role    = (data?['role'] ?? 'user').toString().trim();
+      isAdmin = data?['isAdmin'] == true;
+      debugPrint('[AdminRoute] _goHome: role="$role"  isAdmin=$isAdmin');
+    }
 
-    if (!mounted) return;
+    debugPrint('[AdminRoute] _goHome: mounted=$mounted');
+    if (!mounted) {
+      debugPrint('[AdminRoute] _goHome: widget unmounted — navigation aborted');
+      return;
+    }
 
-    if (role == 'admin') {
+    final goAdmin = role == 'admin' || isAdmin;
+    debugPrint('[AdminRoute] → ${goAdmin ? "AdminDashboard" : "MainShell"}');
+
+    if (goAdmin) {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const AdminDashboard()),
@@ -735,7 +771,7 @@ class _HeroHeader extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          // Emoji + title
+          // Icon badge
           Container(
             width: 52,
             height: 52,
@@ -744,9 +780,10 @@ class _HeroHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
-              child: Text(
-                isLogin ? '🔑' : '🏡',
-                style: const TextStyle(fontSize: 26),
+              child: Icon(
+                isLogin ? Icons.vpn_key_rounded : Icons.home_work_rounded,
+                size: 26,
+                color: Colors.white,
               ),
             ),
           ),

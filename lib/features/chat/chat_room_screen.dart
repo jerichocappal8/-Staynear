@@ -18,6 +18,15 @@ import 'chat_service.dart';
 import 'message_bubble.dart';
 import 'package:staynear/core/app_colors.dart';
 
+// Returns the first non-null, non-empty string — safe against Firestore "" fields.
+String _firstNonEmpty(List<dynamic?> values) {
+  for (final v in values) {
+    final s = (v ?? '').toString().trim();
+    if (s.isNotEmpty) return s;
+  }
+  return '';
+}
+
 class ChatRoomScreen extends StatefulWidget {
   final String  conversationId;
   final String  otherParticipantId;
@@ -52,6 +61,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   final ImagePicker           _picker         = ImagePicker();
   bool _isSending = false;
 
+  // ── live-fetched photo (overrides the passed-in value once resolved) ───────
+  String? _livePhoto;
+
+  String get _effectivePhoto {
+    final live = _livePhoto;
+    if (live != null && live.isNotEmpty) return live;
+    return widget.otherParticipantPhoto.trim();
+  }
+
   // ── input focus for animated border ───────────────────────────────────────
   final FocusNode _focusNode = FocusNode();
   bool _inputFocused = false;
@@ -63,7 +81,71 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     _focusNode.addListener(() {
       setState(() => _inputFocused = _focusNode.hasFocus);
     });
+    _fetchLivePhoto();
   }
+
+  Future<void> _fetchLivePhoto() async {
+    final uid     = widget.otherParticipantId;
+    final authUid = FirebaseAuth.instance.currentUser?.uid ?? '(no auth)';
+    debugPrint('[ChatAvatar] === ChatRoomScreen._fetchLivePhoto ===');
+    debugPrint('[ChatAvatar] currentUid:                  $authUid');
+    debugPrint('[ChatAvatar] otherParticipantId:           $uid');
+    debugPrint('[ChatAvatar] conversationId:               ${widget.conversationId}');
+    debugPrint('[ChatAvatar] widget.otherParticipantPhoto: "${widget.otherParticipantPhoto}"');
+
+    if (uid.isEmpty) {
+      debugPrint('[ChatAvatar] otherParticipantId is empty — skipping fetch');
+      return;
+    }
+
+    try {
+      String photo = '';
+
+      final uDoc = await FirebaseFirestore.instance
+          .collection('users').doc(uid).get();
+      debugPrint('[ChatAvatar] users/$uid exists: ${uDoc.exists}');
+      if (uDoc.exists) {
+        final d = uDoc.data()!;
+        debugPrint('[ChatAvatar]   .photo:          "${d['photo']}"');
+        debugPrint('[ChatAvatar]   .photoUrl:        "${d['photoUrl']}"');
+        debugPrint('[ChatAvatar]   .profileImageUrl: "${d['profileImageUrl']}"');
+        debugPrint('[ChatAvatar]   .avatarUrl:       "${d['avatarUrl']}"');
+        photo = _firstNonEmpty([d['photo'], d['photoUrl'], d['profileImageUrl'], d['avatarUrl']]);
+        debugPrint('[ChatAvatar] resolved from users: "$photo"');
+      }
+
+      if (photo.isEmpty) {
+        final hrDoc = await FirebaseFirestore.instance
+            .collection('host_requests').doc(uid).get();
+        debugPrint('[ChatAvatar] host_requests/$uid exists: ${hrDoc.exists}');
+        if (hrDoc.exists) {
+          final d = hrDoc.data()!;
+          photo = _firstNonEmpty([d['photo'], d['profilePhotoUrl'], d['photoUrl']]);
+          debugPrint('[ChatAvatar] resolved from host_requests: "$photo"');
+        }
+      }
+
+      debugPrint('[ChatAvatar] final _livePhoto: "$photo"');
+      if (mounted && photo.isNotEmpty) setState(() => _livePhoto = photo);
+
+    } catch (e, st) {
+      debugPrint('[ChatAvatar] _fetchLivePhoto ERROR: $e\n$st');
+    }
+  }
+
+  Widget _initialsWidget(String name) => Container(
+    color: AppColors.orangeLight,
+    child: Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: const TextStyle(
+          fontSize:   15,
+          fontWeight: FontWeight.w800,
+          color:      AppColors.primaryOrange,
+        ),
+      ),
+    ),
+  );
 
   @override
   void dispose() {
@@ -322,24 +404,20 @@ Future<void> _pickAndSendImage() async {
             border: Border.all(
                 color: AppColors.primaryOrange.withOpacity(.35), width: 2),
           ),
-          child: CircleAvatar(
-            radius: 19,
-            backgroundColor: AppColors.orangeLight,
-            backgroundImage: widget.otherParticipantPhoto.isNotEmpty
-                ? CachedNetworkImageProvider(widget.otherParticipantPhoto)
-                : null,
-            child: widget.otherParticipantPhoto.isEmpty
-                ? Text(
-                    widget.otherParticipantName.isNotEmpty
-                        ? widget.otherParticipantName[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      fontSize:   15,
-                      fontWeight: FontWeight.w800,
-                      color:      AppColors.primaryOrange,
-                    ),
+          child: ClipOval(
+            child: _effectivePhoto.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl:    _effectivePhoto,
+                    width:       38,
+                    height:      38,
+                    fit:         BoxFit.cover,
+                    placeholder: (_, __) => _initialsWidget(widget.otherParticipantName),
+                    errorWidget: (_, url, err) {
+                      debugPrint('[ChatAvatar] header image FAILED: $url | $err');
+                      return _initialsWidget(widget.otherParticipantName);
+                    },
                   )
-                : null,
+                : _initialsWidget(widget.otherParticipantName),
           ),
         ),
 

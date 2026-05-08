@@ -100,6 +100,7 @@ static const _categories = [
   'Studio',
   'Condo',
   'Whole House',
+  'Hotel',
 ];
 String? _selectedCity;
   String? _selectedCategory;
@@ -114,10 +115,31 @@ String? _selectedCity;
     'No smoking',
     'No pets',
     'Visitors allowed',
+    'Visitors not allowed',
+    'Curfew required',
+    'No curfew',
+    'Cooking allowed',
+    'Cooking not allowed',
+    'Laundry allowed',
+    'Laundry not allowed',
+    'No loud noise',
+    'No parties',
+    'No alcohol',
+    'No illegal activities',
+    'Keep the room clean',
+    'Pay on time',
+    'No extra overnight guests',
     'Female only',
     'Male only',
-    'Curfew required',
+    'Open for all',
   ];
+  static const _ruleGroups = <String, List<String>>{
+    'Smoking & Pets':    ['No smoking', 'No pets'],
+    'Visitors & Curfew': ['Visitors allowed', 'Visitors not allowed', 'Curfew required', 'No curfew', 'No extra overnight guests'],
+    'Cooking & Laundry': ['Cooking allowed', 'Cooking not allowed', 'Laundry allowed', 'Laundry not allowed'],
+    'Behavior':          ['No loud noise', 'No parties', 'No alcohol', 'No illegal activities', 'Keep the room clean', 'Pay on time'],
+    'Occupancy':         ['Female only', 'Male only', 'Open for all'],
+  };
   final Set<String> _selectedRules = {};
 
   // ── Property Availability ─────────────────────────────────────────────────
@@ -125,8 +147,35 @@ String? _selectedCity;
 
   // ── Amenities ─────────────────────────────────────────────────────────────
   static const _amenities = [
-    "WiFi", "Parking", "Aircon", "Balcony", "CCTV", "Gym", "Pet Friendly",
+    'WiFi',
+    'Parking',
+    'Aircon',
+    'Balcony',
+    'CCTV',
+    'Gym',
+    'Pet Friendly',
+    'Private bathroom',
+    'Shared bathroom',
+    'Kitchen access',
+    'Laundry area',
+    'Study table',
+    'Cabinet / closet',
+    'Bed included',
+    'Water included',
+    'Electricity included',
+    'Security guard',
+    'Near transportation',
+    'Near school',
+    'Near mall',
+    'Near hospital',
   ];
+  static const _amenityGroups = <String, List<String>>{
+    'Basic':                   ['WiFi', 'Parking', 'Aircon', 'Balcony', 'CCTV'],
+    'Room Features':           ['Private bathroom', 'Shared bathroom', 'Study table', 'Cabinet / closet', 'Bed included'],
+    'Shared Facilities':       ['Kitchen access', 'Laundry area', 'Gym'],
+    'Included Bills & Nearby': ['Water included', 'Electricity included', 'Security guard', 'Near transportation', 'Near school', 'Near mall', 'Near hospital'],
+    'Policy':                  ['Pet Friendly'],
+  };
   final Set<String> _selectedAmenities = {};
 
   // ── Photos ────────────────────────────────────────────────────────────────
@@ -433,7 +482,12 @@ batch.set(roomRef, {
 
             _sectionLabel("House Rules"),
             const SizedBox(height: 10),
-            _card(child: _houseRulesSection()),
+            _selectorCard(
+              title:    "House Rules",
+              hint:     "Select the rules guests should follow",
+              selected: _selectedRules,
+              onTap:    _openHouseRulesSheet,
+            ),
             const SizedBox(height: 24),
 
             _sectionLabel("Availability"),
@@ -459,7 +513,12 @@ batch.set(roomRef, {
 
             _sectionLabel("Amenities"),
             const SizedBox(height: 10),
-            _card(child: _amenitiesSection()),
+            _selectorCard(
+              title:    "Amenities",
+              hint:     "Select what your property or room offers",
+              selected: _selectedAmenities,
+              onTap:    _openAmenitiesSheet,
+            ),
             const SizedBox(height: 24),
 
             _sectionLabel("Photos"),
@@ -954,50 +1013,345 @@ Widget _basicInfoSection() {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  SECTION: HOUSE RULES
+  //  SELECTOR CARD  (compact summary shown on the main form page)
   // ════════════════════════════════════════════════════════════════════════
 
-  Widget _houseRulesSection() {
-    return Wrap(
-      spacing:    8,
-      runSpacing: 8,
-      children: _allHouseRules.map((rule) {
-        final active = _selectedRules.contains(rule);
-        return GestureDetector(
-          onTap: () => setState(() =>
-              active ? _selectedRules.remove(rule) : _selectedRules.add(rule)),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve:    Curves.easeOut,
-            padding:  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color:        active ? AppColors.textDark : AppColors.cardSoft(context),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(
-                  color: active ? AppColors.textDark : AppColors.border,
-                  width: 1.2),
+  Widget _selectorCard({
+    required String       title,
+    required String       hint,
+    required Set<String>  selected,
+    required VoidCallback onTap,
+  }) {
+    final count   = selected.length;
+    final preview = selected.take(3).toList();
+    final extra   = count > 3 ? count - 3 : 0;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color:        AppColors.card(context),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: count > 0
+                ? AppColors.primaryOrange.withOpacity(0.45)
+                : AppColors.border,
+            width: count > 0 ? 1.5 : 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color:      Colors.black.withOpacity(.04),
+              blurRadius: 20,
+              offset:     const Offset(0, 8),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (active) ...[
-                  const Icon(Icons.check_rounded,
-                      color: Colors.white, size: 14),
-                  const SizedBox(width: 4),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize:   14,
+                      fontWeight: FontWeight.w700,
+                      color:      AppColors.text(context),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  if (count == 0)
+                    Text(
+                      hint,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color:    AppColors.textLight,
+                      ),
+                    )
+                  else
+                    Text(
+                      preview.join(' · ') +
+                          (extra > 0 ? '  +$extra more' : ''),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color:    AppColors.textMid,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                 ],
-                Text(
-                  rule,
-                  style: TextStyle(
-                    color:      active ? Colors.white : AppColors.textMid,
-                    fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-                    fontSize:   13,
+              ),
+            ),
+            const SizedBox(width: 10),
+            if (count > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color:        AppColors.primaryOrange,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  "$count selected",
+                  style: const TextStyle(
+                    color:      Colors.white,
+                    fontSize:   11,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
+              ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: count > 0 ? AppColors.primaryOrange : AppColors.textLight,
+              size:  20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  BOTTOM SHEET OPENERS
+  // ════════════════════════════════════════════════════════════════════════
+
+  void _openAmenitiesSheet() {
+    showModalBottomSheet(
+      context:            context,
+      isScrollControlled: true,
+      backgroundColor:    Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => _buildSelectionSheet(
+          ctx:        ctx,
+          setSheet:   setSheet,
+          sheetTitle: "Select Amenities",
+          helperText: "Select what your property or room offers.",
+          groups:     _amenityGroups,
+          selected:   _selectedAmenities,
+        ),
+      ),
+    ).then((_) => setState(() {}));
+  }
+
+  void _openHouseRulesSheet() {
+    showModalBottomSheet(
+      context:            context,
+      isScrollControlled: true,
+      backgroundColor:    Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => _buildSelectionSheet(
+          ctx:        ctx,
+          setSheet:   setSheet,
+          sheetTitle: "Select House Rules",
+          helperText: "Select the rules guests should follow.",
+          groups:     _ruleGroups,
+          selected:   _selectedRules,
+        ),
+      ),
+    ).then((_) => setState(() {}));
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  BOTTOM SHEET BUILDER
+  // ════════════════════════════════════════════════════════════════════════
+
+  Widget _buildSelectionSheet({
+    required BuildContext              ctx,
+    required StateSetter               setSheet,
+    required String                    sheetTitle,
+    required String                    helperText,
+    required Map<String, List<String>> groups,
+    required Set<String>               selected,
+  }) {
+    final mq = MediaQuery.of(ctx);
+    return Container(
+      height: mq.size.height * 0.88,
+      decoration: BoxDecoration(
+        color:        AppColors.card(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          // Drag handle
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Container(
+                width:  44, height: 4,
+                decoration: BoxDecoration(
+                  color:        AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Title row + count badge
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Text(
+                  sheetTitle,
+                  style: TextStyle(
+                    fontSize:   18,
+                    fontWeight: FontWeight.w800,
+                    color:      AppColors.text(context),
+                    letterSpacing: -.3,
+                  ),
+                ),
+                const Spacer(),
+                if (selected.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color:        AppColors.primaryOrange,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      "${selected.length} selected",
+                      style: const TextStyle(
+                        color:      Colors.white,
+                        fontSize:   11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
-        );
-      }).toList(),
+
+          const SizedBox(height: 4),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              helperText,
+              style: const TextStyle(fontSize: 13, color: AppColors.textMid),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+
+          // Scrollable chip groups
+          Expanded(
+            child: SingleChildScrollView(
+              padding:  const EdgeInsets.fromLTRB(20, 8, 20, 16),
+              physics:  const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: groups.entries.map((entry) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 16),
+                      Text(
+                        entry.key.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize:      10,
+                          fontWeight:    FontWeight.w700,
+                          color:         AppColors.textLight,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing:    8,
+                        runSpacing: 8,
+                        children: entry.value.map((item) {
+                          final active = selected.contains(item);
+                          return GestureDetector(
+                            onTap: () => setSheet(() {
+                              active
+                                  ? selected.remove(item)
+                                  : selected.add(item);
+                            }),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              curve:    Curves.easeOut,
+                              padding:  const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: active
+                                    ? AppColors.primaryOrange.withOpacity(0.10)
+                                    : AppColors.cardSoft(context),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: active
+                                      ? AppColors.primaryOrange
+                                      : AppColors.border,
+                                  width: active ? 1.5 : 1.0,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (active) ...[
+                                    const Icon(Icons.check_rounded,
+                                        color: AppColors.primaryOrange,
+                                        size:  13),
+                                    const SizedBox(width: 5),
+                                  ],
+                                  Text(
+                                    item,
+                                    style: TextStyle(
+                                      color: active
+                                          ? AppColors.primaryOrange
+                                          : AppColors.textMid,
+                                      fontWeight: active
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+
+          // Done button
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 12, 20, mq.padding.bottom + 20),
+            child: SizedBox(
+              height: 52,
+              width:  double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  foregroundColor: Colors.white,
+                  elevation:       0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18)),
+                ),
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  selected.isEmpty
+                      ? "Done"
+                      : "Done  ·  ${selected.length} selected",
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1594,53 +1948,6 @@ Widget _basicInfoSection() {
             ),
           ),
       ],
-    );
-  }
-
-  // ════════════════════════════════════════════════════════════════════════
-  //  SECTION: AMENITIES
-  // ════════════════════════════════════════════════════════════════════════
-
-  Widget _amenitiesSection() {
-    return Wrap(
-      spacing:    8,
-      runSpacing: 8,
-      children: _amenities.map((e) {
-        final active = _selectedAmenities.contains(e);
-        return GestureDetector(
-          onTap: () => setState(() =>
-              active ? _selectedAmenities.remove(e) : _selectedAmenities.add(e)),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve:    Curves.easeOut,
-            padding:  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: active
-                  ? AppColors.primaryOrange
-                  : AppColors.cardSoft(context),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(
-                  color: active ? AppColors.primaryOrange : AppColors.border,
-                  width: 1.2),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (active) ...[
-                  const Icon(Icons.check_rounded, color: Colors.white, size: 14),
-                  const SizedBox(width: 4),
-                ],
-                Text(e,
-                    style: TextStyle(
-                      color:      active ? Colors.white : AppColors.textMid,
-                      fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-                      fontSize:   13,
-                    )),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
     );
   }
 

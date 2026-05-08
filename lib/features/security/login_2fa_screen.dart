@@ -24,6 +24,8 @@ class _Login2FAScreenState extends State<Login2FAScreen>
 
   bool _loading = false;
   bool _useBackup = false;
+  int _failedAttempts = 0;
+  bool _locked = false;
 
   // Six individual OTP digit controllers + focus nodes
   final List<TextEditingController> _digitCtrl =
@@ -178,11 +180,9 @@ class _Login2FAScreenState extends State<Login2FAScreen>
   // ── Firebase logic — unchanged ────────────────────────────────────────────────
 
   Future<void> verify() async {
-    final code = _useBackup
-        ? controller.text.trim()
-        : _otpCode;
+    final code = _useBackup ? controller.text.trim() : _otpCode;
 
-    if (code.isEmpty) return;
+    if (code.isEmpty || _locked) return;
 
     setState(() => _loading = true);
 
@@ -190,18 +190,16 @@ class _Login2FAScreenState extends State<Login2FAScreen>
       int now = DateTime.now().millisecondsSinceEpoch;
 
       String current = OTP.generateTOTPCodeString(
-        widget.secret,
-        now,
-        interval: 30,
-        algorithm: Algorithm.SHA1,
-        isGoogle: true,
+        widget.secret, now,
+        interval: 30, algorithm: Algorithm.SHA1, isGoogle: true,
       );
       String previous = OTP.generateTOTPCodeString(
-        widget.secret,
-        now - 30000,
-        interval: 30,
-        algorithm: Algorithm.SHA1,
-        isGoogle: true,
+        widget.secret, now - 30000,
+        interval: 30, algorithm: Algorithm.SHA1, isGoogle: true,
+      );
+      String next = OTP.generateTOTPCodeString(
+        widget.secret, now + 30000,
+        interval: 30, algorithm: Algorithm.SHA1, isGoogle: true,
       );
 
       final uid = AuthHelper.uid;
@@ -212,10 +210,11 @@ class _Login2FAScreenState extends State<Login2FAScreen>
 
       List backupCodes = doc.data()?['twoFABackupCodes'] ?? [];
 
-      bool validOTP = code == current || code == previous;
+      bool validOTP = code == current || code == previous || code == next;
       bool validBackup = backupCodes.contains(code);
 
       if (validOTP || validBackup) {
+        setState(() { _failedAttempts = 0; });
         if (validBackup) {
           backupCodes.remove(code);
           await FirebaseFirestore.instance
@@ -227,7 +226,16 @@ class _Login2FAScreenState extends State<Login2FAScreen>
       } else {
         HapticFeedback.mediumImpact();
         _shakeCtrl.forward(from: 0);
-        _showErrorSnack('Invalid code. Please try again.');
+        _failedAttempts++;
+        if (_failedAttempts >= 5) {
+          setState(() => _locked = true);
+          _showErrorSnack('Too many attempts. Please wait 30 seconds before trying again.');
+          Future.delayed(const Duration(seconds: 30), () {
+            if (mounted) setState(() { _locked = false; _failedAttempts = 0; });
+          });
+        } else {
+          _showErrorSnack('Invalid verification code. Please try again.');
+        }
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -236,14 +244,28 @@ class _Login2FAScreenState extends State<Login2FAScreen>
 
   Future<void> goHome() async {
     final uid = AuthHelper.uid;
+    debugPrint('[AdminRoute] 2FA goHome: uid=$uid');
+
     final userDoc = await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .get();
-    final role = userDoc.data()?['role'] ?? 'user';
-    if (!mounted) return;
 
-    if (role == 'admin') {
+    debugPrint('[AdminRoute] 2FA goHome: doc.exists=${userDoc.exists}');
+    final data    = userDoc.data();
+    final role    = (data?['role'] ?? 'user').toString().trim();
+    final isAdmin = data?['isAdmin'] == true;
+    debugPrint('[AdminRoute] 2FA goHome: role="$role"  isAdmin=$isAdmin  mounted=$mounted');
+
+    if (!mounted) {
+      debugPrint('[AdminRoute] 2FA goHome: widget unmounted — navigation aborted');
+      return;
+    }
+
+    final goAdmin = role == 'admin' || isAdmin;
+    debugPrint('[AdminRoute] → ${goAdmin ? "AdminDashboard" : "MainShell"}');
+
+    if (goAdmin) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const AdminDashboard()),
@@ -519,11 +541,11 @@ class _Login2FAScreenState extends State<Login2FAScreen>
                   opacity: _cardFade,
                   child: GestureDetector(
                     onTapDown: (_) {
-                      if (!_loading) _btnCtrl.forward();
+                      if (!_loading && !_locked) _btnCtrl.forward();
                     },
                     onTapUp: (_) {
                       _btnCtrl.reverse();
-                      if (!_loading) {
+                      if (!_loading && !_locked) {
                         HapticFeedback.mediumImpact();
                         verify();
                       }
@@ -537,7 +559,7 @@ class _Login2FAScreenState extends State<Login2FAScreen>
                         width: double.infinity,
                         height: 56,
                         decoration: BoxDecoration(
-                          gradient: _loading
+                          gradient: (_loading || _locked)
                               ? null
                               : const LinearGradient(
                                   colors: [
@@ -549,9 +571,11 @@ class _Login2FAScreenState extends State<Login2FAScreen>
                                 ),
                           color: _loading
                               ? AppColors.primaryOrange.withOpacity(0.5)
-                              : null,
+                              : _locked
+                                  ? Colors.grey.withOpacity(0.45)
+                                  : null,
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: _loading
+                          boxShadow: (_loading || _locked)
                               ? []
                               : [
                                   BoxShadow(
@@ -573,23 +597,40 @@ class _Login2FAScreenState extends State<Login2FAScreen>
                                   ),
                                 ),
                               )
-                            : const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.verified_user_rounded,
-                                      color: Colors.white, size: 18),
-                                  SizedBox(width: 9),
-                                  Text(
-                                    'Verify Code',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.1,
-                                    ),
+                            : _locked
+                                ? const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.lock_clock_rounded,
+                                          color: Colors.white, size: 18),
+                                      SizedBox(width: 9),
+                                      Text(
+                                        'Too many attempts. Wait 30s',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.verified_user_rounded,
+                                          color: Colors.white, size: 18),
+                                      SizedBox(width: 9),
+                                      Text(
+                                        'Verify Code',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.1,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
                       ),
                     ),
                   ),
@@ -750,7 +791,7 @@ class _Login2FAScreenState extends State<Login2FAScreen>
             controller: controller,
             focusNode: _focusNode,
             keyboardType: TextInputType.text,
-            maxLength: 12,
+            maxLength: 8,
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -760,7 +801,7 @@ class _Login2FAScreenState extends State<Login2FAScreen>
             ),
             decoration: InputDecoration(
               counterText: '',
-              hintText: 'e.g. AB12-CD34',
+              hintText: 'e.g. 12345678',
               hintStyle: TextStyle(
                 color: AppColors.textLight,
                 fontSize: 14,

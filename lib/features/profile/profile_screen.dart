@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'host_status_screen.dart';
-import '../host/host_dashboard_screen.dart';
+import '../host/host_shell.dart';
 import 'host_application_screen.dart';
 import 'personal_details_screen.dart';
 import 'settings_screen.dart';
@@ -113,7 +113,7 @@ Future<void> _handleHosting() async {
   if (userData!['isHost'] == true) {
     Navigator.push(
       context,
-      SlidePageRoute(page: const HostDashboardScreen()),
+      SlidePageRoute(page: const HostShell()),
     );
     return;
   }
@@ -169,193 +169,277 @@ Future<void> _handleHosting() async {
   body: SafeArea(
         child: ListView(
           children: [
-            const SizedBox(height: 28),
+            _ProfileHeader(
+              name:   name,
+              email:  email,
+              photo:  photo,
+              isDark: Theme.of(context).brightness == Brightness.dark,
+            ),
 
-Container(
-  padding: const EdgeInsets.symmetric(vertical: 32),
-  child: Column(
-    children: [
+            const SizedBox(height: 8),
 
-      CircleAvatar(
-        radius: 46,
-        backgroundColor: AppColors.primaryOrange.withOpacity(0.15),
-        child: ClipOval(
-          child: (photo != null && photo.toString().startsWith('http'))
-              ? Image.network(
-                  photo,
-                  width: 92,
-                  height: 92,
-                  fit: BoxFit.cover,
-                )
-              : Icon(
-                  Icons.person,
-                  size: 42,
-                  color: AppColors.primaryOrange,
+            // ── Account ─────────────────────────────────────────────────
+            _sectionLabel('Account'),
+            _menu(Icons.person_outline_rounded, 'Personal details', const PersonalDetailsScreen()),
+            _menu(Icons.tune_rounded,           'Settings',         const SettingsScreen()),
+
+            // ── Support ─────────────────────────────────────────────────
+            _sectionLabel('Support'),
+            _menu(Icons.help_outline_rounded,   'FAQ',              const FAQScreen()),
+
+            // ── Hosting ─────────────────────────────────────────────────
+            _sectionLabel('Hosting'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+              child: Container(
+                decoration: BoxDecoration(
+                  color:        AppColors.card(context),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color:      Colors.black.withOpacity(
+                        Theme.of(context).brightness == Brightness.dark ? 0.35 : 0.05,
+                      ),
+                      blurRadius: 12,
+                      offset:     const Offset(0, 4),
+                    ),
+                  ],
                 ),
-        ),
-      ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color:        AppColors.primaryOrange.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.home_work_rounded,
+                      color: AppColors.primaryOrange,
+                      size:  22,
+                    ),
+                  ),
+                  title: Text(
+                    hostingText,
+                    style: TextStyle(
+                      color:      AppColors.text(context),
+                      fontWeight: FontWeight.w600,
+                      fontSize:   15,
+                    ),
+                  ),
+                  trailing: Icon(Icons.chevron_right_rounded, color: AppColors.textMid),
+                  onTap: _handleHosting,
+                ),
+              ),
+            ),
 
-      const SizedBox(height: 14),
+            const SizedBox(height: 20),
 
-      Text(
-        name,
-        style: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
-          color: AppColors.text(context),
-        ),
-      ),
+            // ── Logout ──────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color:        AppColors.card(context),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color:      Colors.black.withOpacity(
+                        Theme.of(context).brightness == Brightness.dark ? 0.35 : 0.05,
+                      ),
+                      blurRadius: 12,
+                      offset:     const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color:        Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.logout_rounded, color: Colors.red, size: 22),
+                  ),
+                  title: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      color:      Colors.red,
+                      fontWeight: FontWeight.w600,
+                      fontSize:   15,
+                    ),
+                  ),
+                  onTap: _logout,
+                ),
+              ),
+            ),
 
-      const SizedBox(height: 4),
-
-      Text(
-        email,
-        style: TextStyle(
-          fontSize: 13,
-          color: AppColors.textMid,
-        ),
-      ),
-
-    ],
-  ),
-),
-
-const SizedBox(height: 5),
-
-_menu(Icons.person, "Personal details", const PersonalDetailsScreen()),
-_menu(Icons.settings, "Settings", const SettingsScreen()),
-_menu(Icons.help_outline, "FAQ", const FAQScreen()),
-
-Padding(
-  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-  child: Container(
-decoration: BoxDecoration(
-  color: AppColors.card(context),
-  borderRadius: BorderRadius.circular(14),
-  boxShadow: [
-    BoxShadow(
-      color: Colors.black.withOpacity(
-        Theme.of(context).brightness == Brightness.dark ? 0.35 : 0.05,
-      ),
-      blurRadius: 12,
-      offset: const Offset(0, 4),
-    ),
-  ],
-),
-    child: ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-  color: AppColors.primaryOrange.withOpacity(0.15),
-  borderRadius: BorderRadius.circular(10),
-),
-        child: const Icon(
-          Icons.home_work_outlined,
-          color: Color(0xFFF5A623),
-        ),
-      ),
-      title: Text(
-        hostingText,
-        style: TextStyle(
-          color: AppColors.text(context),
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      trailing: Icon(
-  Icons.chevron_right_rounded,
-  color: AppColors.textMid,
-),
-      onTap: _handleHosting,
-    ),
-  ),
-),
-
-Padding(
-  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-  child: Container(
-decoration: BoxDecoration(
-  color: AppColors.card(context),
-  borderRadius: BorderRadius.circular(14),
-  boxShadow: [
-    BoxShadow(
-      color: Colors.black.withOpacity(
-        Theme.of(context).brightness == Brightness.dark ? 0.35 : 0.05,
-      ),
-      blurRadius: 12,
-      offset: const Offset(0, 4),
-    ),
-  ],
-),
-    child: ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Icon(Icons.logout, color: Colors.red),
-      ),
-      title: const Text(
-        "Logout",
-        style: TextStyle(
-          color: Colors.red,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      onTap: _logout,
-    ),
-  ),
-),
+            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
-Widget _menu(IconData icon, String text, Widget page) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-    child: Container(
-decoration: BoxDecoration(
-  color: AppColors.card(context),
-  borderRadius: BorderRadius.circular(14),
-  boxShadow: [
-    BoxShadow(
-      color: Colors.black.withOpacity(
-        Theme.of(context).brightness == Brightness.dark ? 0.35 : 0.05,
-      ),
-      blurRadius: 12,
-      offset: const Offset(0, 4),
-    ),
-  ],
-),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: AppColors.primaryOrange.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: const Color(0xFFF5A623)),
+  Widget _menu(IconData icon, String text, Widget page) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      child: Container(
+        decoration: BoxDecoration(
+          color:        AppColors.card(context),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color:      Colors.black.withOpacity(
+                Theme.of(context).brightness == Brightness.dark ? 0.35 : 0.05,
+              ),
+              blurRadius: 12,
+              offset:     const Offset(0, 4),
+            ),
+          ],
         ),
-        title: Text(
-          text,
-          style: TextStyle(
-            color: AppColors.text(context),
-            fontWeight: FontWeight.w500,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          leading: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color:        AppColors.primaryOrange.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: AppColors.primaryOrange, size: 22),
           ),
+          title: Text(
+            text,
+            style: TextStyle(
+              color:      AppColors.text(context),
+              fontWeight: FontWeight.w600,
+              fontSize:   15,
+            ),
+          ),
+          trailing: Icon(Icons.chevron_right_rounded, color: AppColors.textMid),
+          onTap: () => Navigator.push(context, SlidePageRoute(page: page)),
         ),
-        trailing: Icon(
-  Icons.chevron_right_rounded,
-  color: AppColors.textMid,
-),
-        onTap: () {
-          Navigator.push(
-            context,
-            SlidePageRoute(page: page),
-          );
-        },
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _sectionLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+      child: Text(
+        label.toUpperCase(),
+        style: const TextStyle(
+          fontSize:      11,
+          fontWeight:    FontWeight.w700,
+          color:         AppColors.textLight,
+          letterSpacing: 1.0,
+        ),
+      ),
+    );
+  }
 }
+
+// ─── Profile header ───────────────────────────────────────────────────────────
+
+class _ProfileHeader extends StatelessWidget {
+  final String  name;
+  final String  email;
+  final dynamic photo;
+  final bool    isDark;
+
+  const _ProfileHeader({
+    required this.name,
+    required this.email,
+    required this.photo,
+    required this.isDark,
+  });
+
+  static String _initials(String name) {
+    final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = _initials(name);
+    final hasPhoto = photo != null && photo.toString().startsWith('http');
+
+    return Container(
+      width:   double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 36),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin:  Alignment.topLeft,
+          end:    Alignment.bottomRight,
+          colors: isDark
+              ? [AppColors.darkBackground, AppColors.darkCard]
+              : [AppColors.primaryOrange, const Color(0xFFFFB347)],
+        ),
+      ),
+      child: Column(
+        children: [
+          // Avatar circle
+          Container(
+            width:  82,
+            height: 82,
+            decoration: BoxDecoration(
+              shape:  BoxShape.circle,
+              color:  Colors.white.withOpacity(0.2),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.5),
+                width: 2.5,
+              ),
+            ),
+            child: ClipOval(
+              child: hasPhoto
+                  ? Image.network(
+                      photo.toString(),
+                      fit:          BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _initialsWidget(initials),
+                    )
+                  : _initialsWidget(initials),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          Text(
+            name,
+            style: const TextStyle(
+              fontSize:      22,
+              fontWeight:    FontWeight.w800,
+              color:         Colors.white,
+              letterSpacing: -0.3,
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          Text(
+            email,
+            style: TextStyle(
+              fontSize: 13,
+              color:    Colors.white.withOpacity(0.82),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget _initialsWidget(String initials) {
+    return Center(
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color:         Colors.white,
+          fontSize:      30,
+          fontWeight:    FontWeight.w800,
+          letterSpacing: -0.5,
+        ),
+      ),
+    );
+  }
 }

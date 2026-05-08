@@ -93,35 +93,11 @@ class _ChatListUserScreenState extends State<ChatListUserScreen>
 
                 return _staggeredItem(
                   index: index,
-                  child: FutureBuilder<Map<String, dynamic>>(
-                    future: _chatService.getOtherParticipantInfo(hostId),
-                    builder: (context, hostSnap) {
-                      final hostInfo = hostSnap.data ?? {};
-                      // Fallback order:
-                      //   1. fetched user-doc name (most up-to-date)
-                      //   2. hostName stored on conversation doc (saved at creation)
-                      //   3. propertyName as last recognisable label
-                      //   4. 'Host'
-                      final fetched  = (hostInfo['name']  as String? ?? '').trim();
-                      final stored   = (data['hostName']  as String? ?? '').trim();
-                      final property = (data['propertyName'] as String? ?? '').trim();
-                      final resolvedName = fetched.isNotEmpty  ? fetched
-                          : stored.isNotEmpty   ? stored
-                          : property.isNotEmpty ? property
-                          : 'Host';
-                      // Same priority for avatar photo.
-                      final fetchedPhoto = (hostInfo['photo'] as String? ?? '');
-                      final storedPhoto  = (data['hostPhoto'] as String? ?? '');
-                      final resolvedPhoto = fetchedPhoto.isNotEmpty ? fetchedPhoto : storedPhoto;
-                      return _ConversationTile(
-                        conversationId:       conversationId,
-                        data:                 data,
-                        otherName:            resolvedName,
-                        otherPhoto:           resolvedPhoto,
-                        otherParticipantId:   hostId,
-                        chatService:          _chatService,
-                      );
-                    },
+                  child: _ConversationTile(
+                    conversationId:     conversationId,
+                    data:               data,
+                    otherParticipantId: hostId,
+                    chatService:        _chatService,
                   ),
                 );
               },
@@ -189,18 +165,14 @@ Widget _staggeredItem({required int index, required Widget child}) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ConversationTile extends StatefulWidget {
-  final String              conversationId;
+  final String               conversationId;
   final Map<String, dynamic> data;
-  final String              otherName;
-  final String              otherPhoto;
-  final String              otherParticipantId;
-  final ChatService         chatService;
+  final String               otherParticipantId;
+  final ChatService          chatService;
 
   const _ConversationTile({
     required this.conversationId,
     required this.data,
-    required this.otherName,
-    required this.otherPhoto,
     required this.otherParticipantId,
     required this.chatService,
   });
@@ -213,6 +185,41 @@ class _ConversationTileState extends State<_ConversationTile> {
 
   // ── press-scale ────────────────────────────────────────────────────────────
   double _scale = 1.0;
+
+  // ── resolved participant info — fetched once, not on every stream rebuild ──
+  String _resolvedName  = '';
+  String _resolvedPhoto = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Seed from conversation doc for immediate display while fetch is in-flight
+    _resolvedName  = (widget.data['hostName']  ?? '').toString().trim();
+    _resolvedPhoto = (widget.data['hostPhoto'] ?? '').toString().trim();
+    _loadParticipantInfo();
+  }
+
+  Future<void> _loadParticipantInfo() async {
+    try {
+      final info  = await widget.chatService.getOtherParticipantInfo(widget.otherParticipantId);
+      final name  = (info['name']  ?? '').toString().trim();
+      final photo = (info['photo'] ?? '').toString().trim();
+      final storedName  = (widget.data['hostName']     ?? '').toString().trim();
+      final storedPhoto = (widget.data['hostPhoto']    ?? '').toString().trim();
+      final property    = (widget.data['propertyName'] ?? '').toString().trim();
+      debugPrint('[ChatAvatar] user list: uid=${widget.otherParticipantId}, name="$name", photo="$photo"');
+      if (!mounted) return;
+      setState(() {
+        _resolvedName  = name.isNotEmpty  ? name
+            : storedName.isNotEmpty   ? storedName
+            : property.isNotEmpty     ? property
+            : 'Host';
+        _resolvedPhoto = photo.isNotEmpty ? photo : storedPhoto;
+      });
+    } catch (e) {
+      debugPrint('[ChatAvatar] user list _loadParticipantInfo error: $e');
+    }
+  }
 
   // ── original helpers (unchanged) ──────────────────────────────────────────
 
@@ -260,8 +267,8 @@ class _ConversationTileState extends State<_ConversationTile> {
                 builder: (_) => ChatRoomScreen(
                   conversationId:       widget.conversationId,
                   otherParticipantId:   widget.otherParticipantId,
-                  otherParticipantName: widget.otherName,
-                  otherParticipantPhoto: widget.otherPhoto,
+                  otherParticipantName: _resolvedName,
+                  otherParticipantPhoto: _resolvedPhoto,
                   propertyName:         propertyName,
                 ),
               ),
@@ -306,8 +313,8 @@ class _ConversationTileState extends State<_ConversationTile> {
 
                   // ── avatar + unread badge ──────────────────────────────
                   _Avatar(
-                    photo:       widget.otherPhoto,
-                    name:        widget.otherName,
+                    photo:       _resolvedPhoto,
+                    name:        _resolvedName,
                     unreadCount: unreadCount,
                   ),
 
@@ -324,7 +331,7 @@ class _ConversationTileState extends State<_ConversationTile> {
                           children: [
                             Expanded(
                               child: Text(
-                                widget.otherName,
+                                _resolvedName,
                                 style: TextStyle(
                                   fontSize:   15,
                                   fontWeight: hasUnread
@@ -456,24 +463,20 @@ class _Avatar extends StatelessWidget {
               width: hasUnread ? 2.0 : 1.2,
             ),
           ),
-          child: CircleAvatar(
-            radius: 24,
-            backgroundColor: AppColors.orangeLight,
-            backgroundImage: photo.isNotEmpty
-                ? CachedNetworkImageProvider(photo)
-                : null,
-            child: photo.isEmpty
-                ? Text(
-                    name.isNotEmpty
-                        ? name[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      fontSize:   18,
-                      fontWeight: FontWeight.w800,
-                      color:      AppColors.primaryOrange,
-                    ),
+          child: ClipOval(
+            child: photo.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl:    photo,
+                    width:       52,
+                    height:      52,
+                    fit:         BoxFit.cover,
+                    placeholder: (_, __) => Container(color: AppColors.orangeLight),
+                    errorWidget: (_, url, err) {
+                      debugPrint('[ChatAvatar] user list image FAILED: $url | $err');
+                      return _Initials(name: name);
+                    },
                   )
-                : null,
+                : _Initials(name: name),
           ),
         ),
 
@@ -523,6 +526,30 @@ class _Avatar extends StatelessWidget {
       ],
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  INITIALS FALLBACK
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _Initials extends StatelessWidget {
+  final String name;
+  const _Initials({required this.name});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    color: AppColors.orangeLight,
+    child: Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: const TextStyle(
+          fontSize:   18,
+          fontWeight: FontWeight.w800,
+          color:      AppColors.primaryOrange,
+        ),
+      ),
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

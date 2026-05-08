@@ -1,8 +1,30 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
+
+// Returns the first value that is non-null AND non-empty after trimming.
+// Using ?? chains doesn't work when Firestore stores "" (empty string) for a
+// missing field — "" is not null so ?? stops there even though the real data
+// is in a later key.
+String _firstNonEmpty(List<dynamic?> values) {
+  for (final v in values) {
+    final s = (v ?? '').toString().trim();
+    if (s.isNotEmpty) return s;
+  }
+  return '';
+}
+
+// Priority: name → fullName → displayName → firstName+lastName
+String _resolveName(Map<String, dynamic> d) {
+  for (final k in const ['name', 'fullName', 'displayName']) {
+    final v = (d[k] ?? '').toString().trim();
+    if (v.isNotEmpty) return v;
+  }
+  return ('${d['firstName'] ?? ''} ${d['lastName'] ?? ''}').trim();
+}
 
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -47,13 +69,10 @@ class ChatService {
     final uData = results[0].data() ?? {};
     final hData = results[1].data() ?? {};
 
-    String _joinName(Map d) =>
-        ('${d['firstName'] ?? ''} ${d['lastName'] ?? ''}').trim();
-
-    final userName  = _joinName(uData);
-    final hostName  = _joinName(hData);
-    final userPhoto = (uData['photo'] as String?) ?? '';
-    final hostPhoto = (hData['photo'] as String?) ?? '';
+    final userName  = _resolveName(uData);
+    final hostName  = _resolveName(hData);
+    final userPhoto = _firstNonEmpty([uData['photo'], uData['photoUrl'], uData['profileImageUrl'], uData['avatarUrl']]);
+    final hostPhoto = _firstNonEmpty([hData['photo'], hData['photoUrl'], hData['profileImageUrl'], hData['avatarUrl']]);
 
     // Create new conversation
     final conversationRef = _firestore.collection('conversations').doc();
@@ -287,12 +306,20 @@ Future<Map<String, dynamic>> _currentUserMeta() async {
 Future<Map<String, dynamic>> getOtherParticipantInfo(
   String otherUserId) async {
 
-  final doc = await _firestore.collection('users').doc(otherUserId).get();
-  final data = doc.data() ?? {};
-
-  return {
-    'name': '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}'.trim(),
-    'photo': data['photo'] ?? '',
-  };
+  debugPrint('[ChatAvatar] getOtherParticipantInfo uid: $otherUserId');
+  try {
+    final doc  = await _firestore.collection('users').doc(otherUserId).get();
+    final data = doc.data() ?? {};
+    debugPrint('[ChatAvatar] users/$otherUserId exists: ${doc.exists}');
+    debugPrint('[ChatAvatar]   .photo:    "${data['photo']}"');
+    debugPrint('[ChatAvatar]   .photoUrl: "${data['photoUrl']}"');
+    final photo = _firstNonEmpty([data['photo'], data['photoUrl'], data['profileImageUrl'], data['avatarUrl']]);
+    final name  = _resolveName(data);
+    debugPrint('[ChatAvatar] → name: "$name", photo: "$photo"');
+    return {'name': name, 'photo': photo};
+  } catch (e, st) {
+    debugPrint('[ChatAvatar] getOtherParticipantInfo ERROR: $e\n$st');
+    return {'name': '', 'photo': ''};
+  }
 }
 }

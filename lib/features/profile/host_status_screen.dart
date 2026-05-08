@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:staynear/core/auth_helper.dart';
 import 'package:staynear/core/app_colors.dart';
-import '../host/host_dashboard_screen.dart';
+import '../host/host_shell.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Status configuration — drives colours, icons, and copy for each state
@@ -167,7 +167,7 @@ class HostStatusScreen extends StatelessWidget {
       child: ElevatedButton.icon(
         onPressed: () => Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => const HostDashboardScreen()),
+          MaterialPageRoute(builder: (_) => const HostShell()),
           (route) => false,
         ),
         icon: const Icon(Icons.home_work_rounded, size: 18),

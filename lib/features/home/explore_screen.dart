@@ -23,14 +23,15 @@ const _kCategories = [
   _Category(label: 'Whole House', icon: Icons.house_rounded),
   _Category(label: 'Studio', icon: Icons.single_bed_rounded),
   _Category(label: 'Condo Unit', icon: Icons.location_city_rounded),
+  _Category(label: 'Hotel', icon: Icons.hotel_rounded),
 ];
 
 const _kLocations = [
-  _Location(city: 'Urdaneta City', emoji: '🏙️', color: Color(0xFFFFF0E0)),
-  _Location(city: 'Dagupan City',  emoji: '🌊',  color: Color(0xFFE0F4FF)),
-  _Location(city: 'Binalonan',     emoji: '🏖️',  color: Color(0xFFE8F5E9)),
-  _Location(city: 'Mangaldan',     emoji: '🌿',  color: Color(0xFFF3E5F5)),
-  _Location(city: 'San Carlos',    emoji: '🏡',  color: Color(0xFFFFEBEE)),
+  _Location(city: 'Urdaneta City', icon: Icons.location_city_rounded, bgColor: Color(0xFFFFF0E0), iconColor: Color(0xFFBF360C)),
+  _Location(city: 'Dagupan City',  icon: Icons.water_rounded,          bgColor: Color(0xFFE0F4FF), iconColor: Color(0xFF01579B)),
+  _Location(city: 'Binalonan',     icon: Icons.forest_rounded,         bgColor: Color(0xFFE8F5E9), iconColor: Color(0xFF1B5E20)),
+  _Location(city: 'Mangaldan',     icon: Icons.landscape_rounded,      bgColor: Color(0xFFF3E5F5), iconColor: Color(0xFF4A148C)),
+  _Location(city: 'San Carlos',    icon: Icons.home_work_rounded,      bgColor: Color(0xFFFFEBEE), iconColor: Color(0xFFB71C1C)),
 ];
 
 const _kBudgets = [
@@ -50,10 +51,16 @@ class _Category {
 }
 
 class _Location {
-  final String city;
-  final String emoji;
-  final Color  color;
-  const _Location({required this.city, required this.emoji, required this.color});
+  final String   city;
+  final IconData icon;
+  final Color    bgColor;
+  final Color    iconColor;
+  const _Location({
+    required this.city,
+    required this.icon,
+    required this.bgColor,
+    required this.iconColor,
+  });
 }
 
 class _Budget {
@@ -563,6 +570,7 @@ class _LocationCards extends StatelessWidget {
       child: ListView.separated(
         scrollDirection:  Axis.horizontal,
         physics:          const BouncingScrollPhysics(),
+        padding:          const EdgeInsets.only(right: 4),
         itemCount:        locations.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
@@ -575,7 +583,7 @@ class _LocationCards extends StatelessWidget {
               width: 140,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                color:        loc.color,
+                color:        loc.bgColor,
                 boxShadow: [
                   BoxShadow(
                       color:      AppColors.textDark.withOpacity(.06),
@@ -587,7 +595,7 @@ class _LocationCards extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(loc.emoji, style: const TextStyle(fontSize: 32)),
+                  Icon(loc.icon, size: 28, color: loc.iconColor),
                   const Spacer(),
                   Text(loc.city,
                       maxLines: 1,
@@ -634,6 +642,7 @@ class _BudgetCards extends StatelessWidget {
       child: ListView.separated(
         scrollDirection:  Axis.horizontal,
         physics:          const BouncingScrollPhysics(),
+        padding:          const EdgeInsets.only(right: 4),
         itemCount:        budgets.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
@@ -713,10 +722,54 @@ class _NewListings extends StatelessWidget {
 
     if (docs.isEmpty) {
       return Container(
-        height: 100,
-        alignment: Alignment.center,
-        child: Text('No new listings yet',
-            style: TextStyle(color: AppColors.textMid, fontSize: 14)),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        decoration: BoxDecoration(
+          color:        AppColors.card(context),
+          borderRadius: BorderRadius.circular(20),
+          border:       Border.all(color: AppColors.border, width: 1.2),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width:  44,
+              height: 44,
+              decoration: BoxDecoration(
+                color:        AppColors.orangeLight,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.home_outlined,
+                color: AppColors.primaryOrange,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'No new listings yet',
+                    style: TextStyle(
+                      fontSize:   14,
+                      fontWeight: FontWeight.w700,
+                      color:      AppColors.textDark,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'New stays will appear here once hosts publish them.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color:    AppColors.textMid,
+                      height:   1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
     }
 

@@ -11,12 +11,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'all_apartments_screen.dart';
 import 'active_apartments_screen.dart';
 import 'add_apartment_screen.dart';
-import 'host_bottom_nav.dart';
 import 'package:staynear/core/app_colors.dart';
 import 'revenue_page.dart';
-import '../chat/chat_list_host_screen.dart';
-import 'host_profile_screen.dart';
-import '../../core/animations/slide_page_route.dart';
 import 'host_reviews_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -185,22 +181,7 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
         .collection('properties')
         .where('ownerId', isEqualTo: uid);
 
-    return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        // swipe LEFT → go to Messages
-        if (details.primaryVelocity! < 0) {
-          Navigator.pushReplacement(
-            context,
-            SlidePageRoute(
-              page: ChatListHostScreen(
-                hostId: FirebaseAuth.instance.currentUser!.uid,
-              ),
-            ),
-          );
-        }
-      },
-
-      child: Scaffold(
+    return Scaffold(
         backgroundColor: AppColors.background(context),
 
         body: StreamBuilder<QuerySnapshot>(
@@ -273,33 +254,6 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
           },
         ),
 
-        bottomNavigationBar: HostBottomNav(
-          currentIndex: 0,
-          onTap: (index) {
-            if (index == 0) return;
-
-            if (index == 1) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChatListHostScreen(
-                    hostId: FirebaseAuth.instance.currentUser!.uid,
-                  ),
-                ),
-              );
-            }
-
-            if (index == 2) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const HostProfileScreen(),
-                ),
-              );
-            }
-          },
-        ),
-
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
 
         floatingActionButton: Padding(
@@ -316,7 +270,6 @@ class _HostDashboardScreenState extends State<HostDashboardScreen>
             ),
           ),
         ),
-      ),
     );
   }
 

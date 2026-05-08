@@ -71,6 +71,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen>
     'Studio',
     'Condo',
     'Whole House',
+    'Hotel',
   ];
 
   // ── Guest capacity ────────────────────────────────────────────────────────

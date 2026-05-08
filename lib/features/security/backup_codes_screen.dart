@@ -66,16 +66,10 @@ class BackupCodesScreen extends StatelessWidget {
 
             ElevatedButton(
               onPressed: () {
-
-                // Close BackupCodesScreen
-                Navigator.pop(context);
-
-                // Close Verify2FAScreen
-                Navigator.pop(context);
-
-                // Close Setup2FAScreen
-                Navigator.pop(context);
-
+                // Pop BackupCodesScreen → Setup2FAScreen → PrivacySecurityPage
+                // (Verify2FAScreen was replaced via pushReplacement, so 2 pops land correctly)
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
               },
               child: const Text("I Saved Them"),
             ),
