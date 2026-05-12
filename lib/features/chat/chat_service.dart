@@ -44,6 +44,7 @@ class ChatService {
     required String propertyId,
     required String propertyName,
     required String hostId,
+    String? bookingId,
   }) async {
     final userId = currentUserId;
 
@@ -56,6 +57,9 @@ class ChatService {
         .get();
 
     if (existing.docs.isNotEmpty) {
+      if (bookingId != null) {
+        await existing.docs.first.reference.update({'bookingId': bookingId});
+      }
       return existing.docs.first.id;
     }
 
@@ -77,19 +81,20 @@ class ChatService {
     // Create new conversation
     final conversationRef = _firestore.collection('conversations').doc();
     await conversationRef.set({
-      'propertyId':   propertyId,
-      'propertyName': propertyName,
-      'hostId':       hostId,
-      'userId':       userId,
-      'hostName':     hostName,
-      'userName':     userName,
-      'hostPhoto':    hostPhoto,
-      'userPhoto':    userPhoto,
-      'participants':     [userId, hostId],
-      'lastMessage':      '',
-      'lastMessageType':  'text',
-      'lastTimestamp':    FieldValue.serverTimestamp(),
-      'createdAt':        FieldValue.serverTimestamp(),
+      'propertyId':      propertyId,
+      'propertyName':    propertyName,
+      'hostId':          hostId,
+      'userId':          userId,
+      'hostName':        hostName,
+      'userName':        userName,
+      'hostPhoto':       hostPhoto,
+      'userPhoto':       userPhoto,
+      'participants':    [userId, hostId],
+      if (bookingId != null) 'bookingId': bookingId,
+      'lastMessage':     bookingId != null ? 'Booking created' : '',
+      'lastMessageType': bookingId != null ? 'booking' : 'text',
+      'lastTimestamp':   FieldValue.serverTimestamp(),
+      'createdAt':       FieldValue.serverTimestamp(),
     });
 
     return conversationRef.id;

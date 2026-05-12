@@ -431,6 +431,41 @@ class _BackupCodesPageState extends State<BackupCodesPage>
           ),
         ),
 
+        const SizedBox(height: 12),
+
+        // Go Home
+        GestureDetector(
+          onTap: () => Navigator.of(context).popUntil((route) => route.isFirst),
+          child: Container(
+            width: double.infinity,
+            height: 56,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: AppColors.card(context),
+              border: Border.all(
+                color: dark ? AppColors.darkCardSoft : AppColors.border,
+                width: 1.5,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.home_rounded,
+                    size: 20, color: AppColors.text(context)),
+                const SizedBox(width: 8),
+                Text(
+                  "Go Home",
+                  style: TextStyle(
+                    color: AppColors.text(context),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
         const SizedBox(height: 20),
 
         Text(

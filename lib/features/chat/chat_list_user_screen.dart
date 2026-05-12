@@ -237,9 +237,10 @@ class _ConversationTileState extends State<_ConversationTile> {
   String _messagePreview(String type, String text) {
     switch (type) {
       case 'image':             return '📷 Photo';
+      case 'booking':           return '📅 Booking created';
       case 'booking_reference': return '📅 Booking Reference';
       case 'payment_reference': return '💳 Payment Reference';
-      default:                  return text;
+      default:                  return text.isEmpty ? 'No messages yet' : text;
     }
   }
 

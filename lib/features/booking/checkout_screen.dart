@@ -337,21 +337,17 @@ final bookingRef = await FirebaseFirestore.instance
     .collection("bookings")
     .add(booking.toMap());
 
-// ── attach booking to chat conversation ──
-final chatService = ChatService();
-
-final conversationId = await chatService.getOrCreateConversation(
-  propertyId: widget.apartment.id,
-  propertyName: widget.apartment.name,
-  hostId: widget.apartment.ownerId,
-);
-
-await FirebaseFirestore.instance
-    .collection("conversations")
-    .doc(conversationId)
-    .update({
-  "bookingId": bookingRef.id,
-});
+// ── create or reuse a host↔guest conversation for this booking ──
+try {
+  await ChatService().getOrCreateConversation(
+    propertyId:  widget.apartment.id,
+    propertyName: widget.apartment.name,
+    hostId:      widget.apartment.ownerId,
+    bookingId:   bookingRef.id,
+  );
+} catch (e) {
+  debugPrint('[Booking] conversation create failed (non-fatal): $e');
+}
   // For monthly: stayTotal shown in PaymentPriceCard should be the first
   // month rent only, so all line items sum to totalDueToday.
   // For daily: stayTotal is the full stay cost (priceDaily × nights).
