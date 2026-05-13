@@ -34,6 +34,8 @@ Future<User?> register(String email, String password, String phone, String name)
 
     "isHost": false,
 
+    "hostRequest": "none",
+
     "createdAt": FieldValue.serverTimestamp(),
 
   });
@@ -133,6 +135,7 @@ Future<User?> register(String email, String password, String phone, String name)
     await _db.collection('users').doc(user.uid).set({
       'email':     user.email ?? '',
       'name':      user.displayName ?? '',
+      'phone':     '',
       'photoUrl':  user.photoURL ?? '',
       'provider':  'google',
       'role':      'user',

@@ -148,7 +148,8 @@ Future<void> _handleHosting() async {
         ? '$firstName $lastName'.trim()
         : (userData?['name'] ?? 'User').toString();
     final email = userData?['email'] ?? "";
-    final photo = userData?['photo'];
+    final photo = userData?['photo'] ?? userData?['photoUrl'];
+    final phone = (userData?['phone'] ?? userData?['phoneNumber'] ?? userData?['mobile'] ?? '').toString().trim();
     final isHost = userData?['isHost'] ?? false;
     final requestStatus = userData?['hostRequest'] ?? "none";
 
@@ -172,6 +173,7 @@ Future<void> _handleHosting() async {
             _ProfileHeader(
               name:   name,
               email:  email,
+              phone:  phone,
               photo:  photo,
               isDark: Theme.of(context).brightness == Brightness.dark,
             ),
@@ -344,12 +346,14 @@ Future<void> _handleHosting() async {
 class _ProfileHeader extends StatelessWidget {
   final String  name;
   final String  email;
+  final String  phone;
   final dynamic photo;
   final bool    isDark;
 
   const _ProfileHeader({
     required this.name,
     required this.email,
+    required this.phone,
     required this.photo,
     required this.isDark,
   });
@@ -422,6 +426,17 @@ class _ProfileHeader extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               color:    Colors.white.withOpacity(0.82),
+            ),
+          ),
+
+          const SizedBox(height: 2),
+
+          Text(
+            phone.isNotEmpty ? phone : 'No phone number added',
+            style: TextStyle(
+              fontSize: 12,
+              color:    Colors.white.withOpacity(phone.isNotEmpty ? 0.72 : 0.50),
+              fontStyle: phone.isNotEmpty ? FontStyle.normal : FontStyle.italic,
             ),
           ),
         ],

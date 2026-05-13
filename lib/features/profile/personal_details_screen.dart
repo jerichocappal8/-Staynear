@@ -181,10 +181,27 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen>
         _firstNameController.text  = data['firstName']  ?? '';
         _middleNameController.text = data['middleName'] ?? '';
         _lastNameController.text   = data['lastName']   ?? '';
-        _phoneController.text      = data['phone']      ?? '';
+
+        // If firstName/lastName weren't stored (e.g. email registration only
+        // saves 'name'), parse the full name into first/last components.
+        if (_firstNameController.text.isEmpty && _lastNameController.text.isEmpty) {
+          final fullName = (data['name'] ?? data['fullName'] ?? data['displayName'] ?? '').toString().trim();
+          if (fullName.isNotEmpty) {
+            final parts = fullName.split(RegExp(r'\s+'));
+            _firstNameController.text = parts.first;
+            if (parts.length > 1) {
+              _lastNameController.text = parts.last;
+              if (parts.length > 2) {
+                _middleNameController.text = parts.sublist(1, parts.length - 1).join(' ');
+              }
+            }
+          }
+        }
+
+        _phoneController.text      = (data['phone'] ?? data['phoneNumber'] ?? data['mobile'] ?? '').toString();
         _streetController.text     = data['street']     ?? '';
         _zipCodeController.text    = data['zipCode']    ?? '';
-        _photoUrl                  = data['photo'];
+        _photoUrl                  = data['photo'] ?? data['photoUrl'];
 
         final savedCity     = data['city']     ?? '';
         final savedBarangay = data['barangay'] ?? '';
