@@ -36,9 +36,16 @@ Future<void> main() async {
   );
 
   const stripeKey = String.fromEnvironment('STRIPE_PUBLISHABLE_KEY');
+  debugPrint('[Stripe] Key present: ${stripeKey.isNotEmpty} (${stripeKey.length} chars)');
   if (stripeKey.isNotEmpty) {
     Stripe.publishableKey = stripeKey;
     await Stripe.instance.applySettings();
+    debugPrint('[Stripe] Initialized successfully.');
+  } else {
+    debugPrint(
+      '[Stripe] WARNING: STRIPE_PUBLISHABLE_KEY not set. '
+      'Build with: flutter build apk --debug --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...',
+    );
   }
 
   // ❌ REMOVE THIS

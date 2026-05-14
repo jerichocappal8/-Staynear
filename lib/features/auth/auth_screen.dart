@@ -464,14 +464,14 @@ Future<void> _handleAuth() async {
       }
     } catch (e) {
       if (!mounted) return;
-      if (e.toString().contains('no-account-found')) {
-        _showError(
-          'No account found for this Google email. Please create an account first.',
-        );
+      debugPrint('[AuthScreen] _handleGoogleLogin error (${e.runtimeType}): $e');
+      final msg = e.toString();
+      if (msg.contains('no-account-found')) {
+        _showError('No account found for this Google email. Please create an account first.');
+      } else if (msg.contains('google-id-token-null')) {
+        _showError('Google sign-in is not configured correctly. Please contact support.');
       } else {
-        _showError(
-          _authErrorMessage(e, fallback: 'Google sign-in failed. Please try again.'),
-        );
+        _showError(_authErrorMessage(e, fallback: 'Google sign-in failed. Please try again.'));
       }
     } finally {
       if (mounted) setState(() => loading = false);
@@ -491,14 +491,14 @@ Future<void> _handleAuth() async {
       }
     } catch (e) {
       if (!mounted) return;
-      if (e.toString().contains('account-already-exists')) {
-        _showError(
-          'An account already exists for this Google email. Please log in instead.',
-        );
+      debugPrint('[AuthScreen] _handleGoogleSignup error (${e.runtimeType}): $e');
+      final msg = e.toString();
+      if (msg.contains('account-already-exists')) {
+        _showError('An account already exists for this Google email. Please log in instead.');
+      } else if (msg.contains('google-id-token-null')) {
+        _showError('Google sign-up is not configured correctly. Please contact support.');
       } else {
-        _showError(
-          _authErrorMessage(e, fallback: 'Google sign-up failed. Please try again.'),
-        );
+        _showError(_authErrorMessage(e, fallback: 'Google sign-up failed. Please try again.'));
       }
     } finally {
       if (mounted) setState(() => loading = false);
@@ -640,6 +640,24 @@ Future<void> _handleAuth() async {
         default:
           return fallback;
       }
+    }
+
+    // PlatformException is thrown by google_sign_in on real devices.
+    // code 'sign_in_failed' with ApiException: 10 = DEVELOPER_ERROR (SHA mismatch).
+    if (error is PlatformException) {
+      final code = error.code;
+      final message = error.message ?? '';
+      debugPrint('[AuthScreen] PlatformException code=$code message=$message');
+      if (message.contains('ApiException: 10') || message.contains('DEVELOPER_ERROR')) {
+        return "Google sign-in setup error. SHA fingerprints may be missing in Firebase.";
+      }
+      if (message.contains('ApiException: 7') || message.contains('NETWORK_ERROR')) {
+        return "No internet connection. Please check your network.";
+      }
+      if (code == 'sign_in_cancelled' || message.contains('12501')) {
+        return fallback;
+      }
+      return fallback;
     }
 
     return fallback;

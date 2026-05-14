@@ -981,6 +981,8 @@ class PrivacySecurityPage extends StatefulWidget {
   State<PrivacySecurityPage> createState() => _PrivacySecurityPageState();
 }
 class _PrivacySecurityPageState extends State<PrivacySecurityPage> {
+  bool _isDeleting = false;
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -1148,164 +1150,153 @@ Future<void> _sendPasswordReset(BuildContext context) async {
 }
 
 void _showDeleteDialog(BuildContext context) {
+  if (_isDeleting) return;
   final passwordController = TextEditingController();
 
   showDialog(
     context: context,
     barrierDismissible: false,
-    builder: (_) => AlertDialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      title: Text(
+    builder: (dialogContext) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
         'Delete Account',
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-        ),
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
       ),
-
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-
-          Text(
+          const Text(
             'This action is permanent and cannot be undone. All your data will be removed.',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textMid,
-              height: 1.5,
-            ),
+            style: TextStyle(fontSize: 14, color: AppColors.textMid, height: 1.5),
           ),
-
           const SizedBox(height: 16),
-
           TextField(
             controller: passwordController,
             obscureText: true,
             decoration: const InputDecoration(
-              labelText: "Enter your password",
+              labelText: 'Enter your password to confirm',
               border: OutlineInputBorder(),
             ),
           ),
-
         ],
       ),
-
       actions: [
-
-        /// CANCEL
         TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text(
             'Cancel',
-            style: TextStyle(
-              color: AppColors.textMid,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(color: AppColors.textMid, fontWeight: FontWeight.w600),
           ),
         ),
-
-        /// DELETE ACCOUNT
         TextButton(
-          onPressed: () async {
-
-            final password = passwordController.text.trim();
-            if (password.isEmpty) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text("Please enter your password"),
-      backgroundColor: Colors.red,
-    ),
-  );
-  return;
-}
-
-            Navigator.pop(context);
-
-            final user = FirebaseAuth.instance.currentUser;
-            if (user == null) return;
-
-            final uid = user.uid;
-            final email = user.email;
-
-            /// show loading
-            showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (_) => const Center(
-                child: CircularProgressIndicator(),
-              ),
-            );
-
-            try {
-
-              /// REAUTHENTICATE USER
-              final credential = EmailAuthProvider.credential(
-                email: email!,
-                password: password,
-              );
-
-              await user.reauthenticateWithCredential(credential);
-
-              /// DELETE FIRESTORE USER DATA FIRST
-              /// Security rules require request.auth, which is gone after
-              /// Firebase Auth deletes the user.
-              await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(uid)
-                  .delete();
-
-              /// DELETE FIREBASE AUTH USER
-              await user.delete();
-
-              if (!context.mounted) return;
-
-              Navigator.pop(context);
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("Account deleted successfully"),
-                  backgroundColor: Colors.green,
-                ),
-              );
-
-              /// REDIRECT TO LOGIN
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                  builder: (_) => const AuthScreen(isLogin: true),
-                ),
-                (route) => false,
-              );
-
-            } catch (e) {
-
-              if (!context.mounted) return;
-
-              Navigator.pop(context);
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text("Delete failed: $e"),
-                  backgroundColor: Colors.red,
-                ),
-              );
-
-            }
-
-          },
+          onPressed: _isDeleting
+              ? null
+              : () {
+                  final password = passwordController.text.trim();
+                  if (password.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter your password.'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.pop(dialogContext); // close confirm dialog
+                  _performDelete(context, password);
+                },
           child: Text(
             'Delete',
             style: TextStyle(
-              color: Color(0xFFEF4444),
+              color: _isDeleting ? AppColors.textLight : const Color(0xFFEF4444),
               fontWeight: FontWeight.w700,
             ),
           ),
         ),
-
       ],
     ),
   );
+}
+
+Future<void> _performDelete(BuildContext context, String password) async {
+  if (_isDeleting) return;
+  if (mounted) setState(() => _isDeleting = true);
+
+  // Show loading indicator
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const Center(
+      child: CircularProgressIndicator(color: AppColors.primaryOrange),
+    ),
+  );
+
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (context.mounted) Navigator.of(context).pop();
+      return;
+    }
+
+    final uid   = user.uid;
+    final email = user.email;
+
+    // Reauthenticate with email + password.
+    final credential = EmailAuthProvider.credential(
+      email: email!,
+      password: password,
+    );
+    await user.reauthenticateWithCredential(credential);
+
+    // Delete Firestore doc BEFORE auth deletion —
+    // Firestore rules require request.auth.uid, which is gone after delete().
+    await FirebaseFirestore.instance.collection('users').doc(uid).delete();
+
+    // Capture the navigator BEFORE calling user.delete().
+    // user.delete() changes the auth state which may trigger widget unmount,
+    // making Navigator.of(context) unavailable after that point.
+    if (!context.mounted) return;
+    final navigator = Navigator.of(context);
+
+    await user.delete();
+    debugPrint('[DeleteAccount] Firebase Auth user deleted successfully.');
+
+    // pushAndRemoveUntil clears the full route stack (including loading dialog)
+    // and lands on the sign-in screen.
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthScreen(isLogin: true)),
+      (route) => false,
+    );
+  } on FirebaseAuthException catch (e) {
+    debugPrint('[DeleteAccount] FirebaseAuthException: code=${e.code} message=${e.message}');
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // close loading
+
+    final String message;
+    switch (e.code) {
+      case 'wrong-password':
+      case 'invalid-credential':
+        message = 'Incorrect password. Your account was not deleted.';
+        break;
+      case 'requires-recent-login':
+        message = 'For security, please log out and log back in before deleting your account.';
+        break;
+      default:
+        message = 'Delete failed: ${e.message ?? e.code}';
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  } catch (e) {
+    debugPrint('[DeleteAccount] Error: $e');
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // close loading
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Delete failed: $e'), backgroundColor: Colors.red),
+    );
+  } finally {
+    if (mounted) setState(() => _isDeleting = false);
+  }
 }
 }
 // ════════════════════════════════════════════════════════════════════════════

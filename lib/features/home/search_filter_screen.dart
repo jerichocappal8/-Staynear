@@ -703,7 +703,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionHeader('Guests',
-            subtitle: 'Minimum occupant capacity (maxOccupants)'),
+            subtitle: 'Minimum number of people per room'),
         const SizedBox(height: 14),
         Row(
           children: _guestOptions.map((opt) {
@@ -732,7 +732,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionHeader('Gender restriction',
-            subtitle: 'Matches the genderRestriction field on rooms'),
+            subtitle: 'Filter by preferred occupant gender'),
         const SizedBox(height: 14),
         Wrap(
           spacing:    8,
@@ -759,7 +759,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen>
           children: [
             Expanded(
               child: _sectionHeader('Amenities',
-                  subtitle: 'Matches the amenities array on properties'),
+                  subtitle: 'Select the amenities you need'),
             ),
             if (_selectedAmenities.isNotEmpty)
               GestureDetector(
@@ -975,7 +975,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen>
                   ),
                 ),
                 Text(
-                  'Only show rooms where isAvailable = true',
+                  'Only show properties with available units',
                   style: const TextStyle(
                       fontSize: 12, color: AppColors.textMid),
                 ),
