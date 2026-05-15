@@ -27,6 +27,7 @@ import 'package:flutter/material.dart';
 import 'package:otp/otp.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 // Adjust these import paths to match your project structure.
 import '../../core/app_colors.dart';
 import 'package:staynear/core/auth_helper.dart';
@@ -1151,6 +1152,19 @@ Future<void> _sendPasswordReset(BuildContext context) async {
 
 void _showDeleteDialog(BuildContext context) {
   if (_isDeleting) return;
+  final providers = (FirebaseAuth.instance.currentUser?.providerData ?? [])
+      .map((p) => p.providerId)
+      .toList();
+  if (providers.contains('password')) {
+    _showPasswordDeleteDialog(context);
+  } else if (providers.contains('google.com')) {
+    _showGoogleDeleteDialog(context);
+  } else {
+    _showPasswordDeleteDialog(context);
+  }
+}
+
+void _showPasswordDeleteDialog(BuildContext context) {
   final passwordController = TextEditingController();
 
   showDialog(
@@ -1202,8 +1216,8 @@ void _showDeleteDialog(BuildContext context) {
                     );
                     return;
                   }
-                  Navigator.pop(dialogContext); // close confirm dialog
-                  _performDelete(context, password);
+                  Navigator.pop(dialogContext);
+                  _performDeleteWithPassword(context, password);
                 },
           child: Text(
             'Delete',
@@ -1218,11 +1232,99 @@ void _showDeleteDialog(BuildContext context) {
   );
 }
 
-Future<void> _performDelete(BuildContext context, String password) async {
+void _showGoogleDeleteDialog(BuildContext context) {
+  final confirmController = TextEditingController();
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
+        'Delete Account',
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'This action is permanent and cannot be undone. All your data will be removed.',
+            style: TextStyle(fontSize: 14, color: AppColors.textMid, height: 1.5),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFFF59E0B)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'You will be asked to sign in with Google to verify your identity.',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF92400E), height: 1.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: confirmController,
+            decoration: const InputDecoration(
+              labelText: 'Type CONFIRM to proceed',
+              hintText: 'CONFIRM',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(color: AppColors.textMid, fontWeight: FontWeight.w600),
+          ),
+        ),
+        TextButton(
+          onPressed: _isDeleting
+              ? null
+              : () {
+                  if (confirmController.text.trim() != 'CONFIRM') {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please type CONFIRM exactly to proceed.'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.pop(dialogContext);
+                  _performDeleteWithGoogle(context);
+                },
+          child: Text(
+            'Delete',
+            style: TextStyle(
+              color: _isDeleting ? AppColors.textLight : const Color(0xFFEF4444),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> _performDeleteWithPassword(BuildContext context, String password) async {
   if (_isDeleting) return;
   if (mounted) setState(() => _isDeleting = true);
 
-  // Show loading indicator
   showDialog(
     context: context,
     barrierDismissible: false,
@@ -1238,12 +1340,10 @@ Future<void> _performDelete(BuildContext context, String password) async {
       return;
     }
 
-    final uid   = user.uid;
-    final email = user.email;
+    final uid = user.uid;
 
-    // Reauthenticate with email + password.
     final credential = EmailAuthProvider.credential(
-      email: email!,
+      email: user.email!,
       password: password,
     );
     await user.reauthenticateWithCredential(credential);
@@ -1252,17 +1352,12 @@ Future<void> _performDelete(BuildContext context, String password) async {
     // Firestore rules require request.auth.uid, which is gone after delete().
     await FirebaseFirestore.instance.collection('users').doc(uid).delete();
 
-    // Capture the navigator BEFORE calling user.delete().
-    // user.delete() changes the auth state which may trigger widget unmount,
-    // making Navigator.of(context) unavailable after that point.
     if (!context.mounted) return;
     final navigator = Navigator.of(context);
 
     await user.delete();
     debugPrint('[DeleteAccount] Firebase Auth user deleted successfully.');
 
-    // pushAndRemoveUntil clears the full route stack (including loading dialog)
-    // and lands on the sign-in screen.
     navigator.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const AuthScreen(isLogin: true)),
       (route) => false,
@@ -1270,7 +1365,7 @@ Future<void> _performDelete(BuildContext context, String password) async {
   } on FirebaseAuthException catch (e) {
     debugPrint('[DeleteAccount] FirebaseAuthException: code=${e.code} message=${e.message}');
     if (!context.mounted) return;
-    Navigator.of(context).pop(); // close loading
+    Navigator.of(context).pop();
 
     final String message;
     switch (e.code) {
@@ -1281,6 +1376,9 @@ Future<void> _performDelete(BuildContext context, String password) async {
       case 'requires-recent-login':
         message = 'For security, please log out and log back in before deleting your account.';
         break;
+      case 'network-request-failed':
+        message = 'Network error. Please check your connection and try again.';
+        break;
       default:
         message = 'Delete failed: ${e.message ?? e.code}';
     }
@@ -1290,7 +1388,121 @@ Future<void> _performDelete(BuildContext context, String password) async {
   } catch (e) {
     debugPrint('[DeleteAccount] Error: $e');
     if (!context.mounted) return;
-    Navigator.of(context).pop(); // close loading
+    Navigator.of(context).pop();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Delete failed: $e'), backgroundColor: Colors.red),
+    );
+  } finally {
+    if (mounted) setState(() => _isDeleting = false);
+  }
+}
+
+Future<void> _performDeleteWithGoogle(BuildContext context) async {
+  if (_isDeleting) return;
+  if (mounted) setState(() => _isDeleting = true);
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const Center(
+      child: CircularProgressIndicator(color: AppColors.primaryOrange),
+    ),
+  );
+
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (context.mounted) Navigator.of(context).pop();
+      return;
+    }
+
+    final uid = user.uid;
+
+    final googleSignIn = GoogleSignIn(
+      serverClientId:
+          '578999573932-9pm11s6boh55s4pnmo1ckpcestm2ki8a.apps.googleusercontent.com',
+    );
+    await googleSignIn.signOut();
+
+    final googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sign-in cancelled. Account was not deleted.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      if (mounted) setState(() => _isDeleting = false);
+      return;
+    }
+
+    final googleAuth = await googleUser.authentication;
+    if (googleAuth.idToken == null) {
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Google sign-in failed. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      if (mounted) setState(() => _isDeleting = false);
+      return;
+    }
+
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+    await user.reauthenticateWithCredential(credential);
+
+    // Delete Firestore doc BEFORE auth deletion —
+    // Firestore rules require request.auth.uid, which is gone after delete().
+    await FirebaseFirestore.instance.collection('users').doc(uid).delete();
+
+    if (!context.mounted) return;
+    final navigator = Navigator.of(context);
+
+    await user.delete();
+    debugPrint('[DeleteAccount] Firebase Auth user deleted successfully.');
+
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthScreen(isLogin: true)),
+      (route) => false,
+    );
+  } on FirebaseAuthException catch (e) {
+    debugPrint('[DeleteAccount] FirebaseAuthException: code=${e.code} message=${e.message}');
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+
+    final String message;
+    switch (e.code) {
+      case 'requires-recent-login':
+        message = 'For security, please log out and log back in before deleting your account.';
+        break;
+      case 'user-mismatch':
+        message = 'The Google account does not match your signed-in account.';
+        break;
+      case 'invalid-credential':
+        message = 'Google sign-in failed. Please try again.';
+        break;
+      case 'network-request-failed':
+        message = 'Network error. Please check your connection and try again.';
+        break;
+      default:
+        message = 'Delete failed: ${e.message ?? e.code}';
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  } catch (e) {
+    debugPrint('[DeleteAccount] Error: $e');
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Delete failed: $e'), backgroundColor: Colors.red),
     );
