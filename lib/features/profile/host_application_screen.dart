@@ -113,8 +113,10 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
     if (firstNameCtrl.text.trim().isEmpty) errs['firstName'] = 'First name is required';
     if (phoneCtrl.text.trim().isEmpty) {
       errs['phone'] = 'Phone number is required';
-    } else if (!RegExp(r'^09\d{9}$').hasMatch(phoneCtrl.text.trim())) {
-      errs['phone'] = 'Enter a valid PH number (09XXXXXXXXX)';
+    } else if (phoneCtrl.text.trim().length != 10) {
+      errs['phone'] = 'Enter a valid 10-digit mobile number';
+    } else if (!phoneCtrl.text.trim().startsWith('9')) {
+      errs['phone'] = 'Phone number must start with 9';
     }
     if (_dob == null) {
       errs['dob'] = 'Date of birth is required';
@@ -182,7 +184,7 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
         'lastName': lastNameCtrl.text.trim(),
         'fullName': _fullName,
         // Contact
-        'phone': phoneCtrl.text.trim(),
+        'phone': '+63${phoneCtrl.text.trim()}',
         // Personal
         'dateOfBirth': _dob!.toIso8601String(),
         'age': age,
@@ -561,10 +563,10 @@ class _HostApplicationScreenState extends State<HostApplicationScreen>
         _FormCard(children: [
           _FormField(
             controller: phoneCtrl, label: 'Phone Number',
-            icon: Icons.phone_outlined, hint: '09XXXXXXXXX',
+            icon: Icons.phone_outlined, hint: '9XXXXXXXXX',
             inputType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly,
-                              LengthLimitingTextInputFormatter(11)],
+                              LengthLimitingTextInputFormatter(10)],
             error: _step1Errors['phone'],
             prefix: _phPrefix(),
             onChanged: (_) => setState(() => _step1Errors.remove('phone')),

@@ -183,7 +183,7 @@ class _GuestInfoScreenState extends State<GuestInfoScreen> {
       firstName:       _firstNameCtrl.text.trim(),
       lastName:        _lastNameCtrl.text.trim(),
       email:           _emailCtrl.text.trim(),
-      phone:           _phoneCtrl.text.trim(),
+      phone:           '+63${_phoneCtrl.text.trim()}',
       checkInDate:     checkIn,
       checkOutDate:    checkOut,
       roomsCount:      1,
@@ -1089,13 +1089,13 @@ class _GuestInfoCard extends StatelessWidget {
           _LabeledField(
             label:        'Phone Number',
             controller:   phoneCtrl,
-            hint:         '09XXXXXXXXX',
+            hint:         '9XXXXXXXXX',
             keyboardType: TextInputType.number,
-            prefixIcon:   Icons.phone_outlined,
+            prefix:       _phPrefix(),
             validator:    _validatePhone,
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(11),
+              LengthLimitingTextInputFormatter(10),
             ],
           ),
         ],
@@ -1110,8 +1110,9 @@ class _GuestInfoCard extends StatelessWidget {
   }
 
   static String? _validatePhone(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Required';
-    if (!RegExp(r'^09\d{9}$').hasMatch(v.trim())) return 'Enter a valid PH number (09XXXXXXXXX)';
+    if (v == null || v.trim().isEmpty) return 'Phone number is required';
+    if (v.trim().length != 10) return 'Enter a valid 10-digit mobile number';
+    if (!v.trim().startsWith('9')) return 'Phone number must start with 9';
     return null;
   }
 
@@ -1165,12 +1166,23 @@ class _SpecialRequestsCard extends StatelessWidget {
 //  LABELED TEXT FIELD
 // ─────────────────────────────────────────────────────────────────────────────
 
+Widget _phPrefix() => Padding(
+  padding: const EdgeInsets.only(left: 12, right: 4),
+  child: Row(mainAxisSize: MainAxisSize.min, children: [
+    const Text('🇵🇭', style: TextStyle(fontSize: 16)),
+    const SizedBox(width: 4),
+    const Text('+63', style: TextStyle(fontSize: 13, color: AppColors.textMid, fontWeight: FontWeight.w600)),
+    Container(width: 1, height: 18, color: Colors.grey.shade300, margin: const EdgeInsets.symmetric(horizontal: 8)),
+  ]),
+);
+
 class _LabeledField extends StatelessWidget {
   final String                       label;
   final TextEditingController        controller;
   final String                       hint;
   final TextInputType                keyboardType;
   final IconData?                    prefixIcon;
+  final Widget?                      prefix;
   final String? Function(String?)?   validator;
   final TextCapitalization           textCapitalization;
   final List<TextInputFormatter>?    inputFormatters;
@@ -1181,6 +1193,7 @@ class _LabeledField extends StatelessWidget {
     required this.hint,
     this.keyboardType       = TextInputType.text,
     this.prefixIcon,
+    this.prefix,
     this.validator,
     this.textCapitalization = TextCapitalization.none,
     this.inputFormatters,
@@ -1219,7 +1232,8 @@ class _LabeledField extends StatelessWidget {
               color:      AppColors.textLight,
               fontWeight: FontWeight.w400,
             ),
-            prefixIcon: prefixIcon != null
+            prefix: prefix,
+            prefixIcon: prefix == null && prefixIcon != null
                 ? Icon(prefixIcon, size: 18, color: AppColors.textLight)
                 : null,
             filled:    true,
